@@ -116,9 +116,18 @@ function spawnFuelGrid(x, y, columns, rows) {
 }
 
 function spawnCenteredFuelGrid(centerX, centerY, columns, rows) {
-    const width = (columns - 1) * BALL_R * 2;
-    const height = (rows - 1) * BALL_R * 2;
-    spawnFuelGrid(centerX - width / 2, centerY - height / 2, columns, rows);
+    const spacing = BALL_R * 2;
+    const topRows = Math.floor(rows / 2);
+    const bottomRows = rows - topRows;
+
+    const width = (columns - 1) * spacing;
+    const startX = centerX - width / 2;
+
+    const topStartY = centerY - spacing * topRows;
+    const bottomStartY = centerY + spacing;
+
+    spawnFuelGrid(startX, topStartY, columns, topRows);
+    spawnFuelGrid(startX, bottomStartY, columns, bottomRows);
 }
 
 function createOutpostState(side) {

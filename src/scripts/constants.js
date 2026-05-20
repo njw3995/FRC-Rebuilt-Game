@@ -78,8 +78,8 @@ export const OUTPOST_HUMAN_PLAYERS = 3;
 export const OUTPOST_HUMAN_MIN_RATE = 0.5;
 export const OUTPOST_HUMAN_MAX_RATE = 1.5;
 export const OUTPOST_HUMAN_SHOOT_STOP_LEAD_TIME = 2;
-export const NEUTRAL_FUEL_COLUMNS = 12;
-export const NEUTRAL_FUEL_ROWS = 30;
+export const NEUTRAL_FUEL_COLUMNS = 14;
+export const NEUTRAL_FUEL_ROWS = 28;
 export const DEPOT_FUEL_COLUMNS = 4;
 export const DEPOT_FUEL_ROWS = 6;
 

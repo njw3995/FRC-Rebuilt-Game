@@ -8,6 +8,8 @@ A static browser game for GitHub Pages. The project uses plain HTML, CSS, and ES
 .
 ├── index.html
 ├── src
+│   ├── assets
+│   │   └── audio
 │   ├── scripts
 │   │   ├── audio.js
 │   │   ├── constants.js
@@ -50,6 +52,16 @@ Settings > Pages > Build and deployment > Deploy from a branch
 
 Select the branch and `/root` as the publishing source.
 
-## Notes
+## Current gameplay notes
 
-The original single-file version embedded very large base64 audio data directly in JavaScript. This refactor replaces that with small generated Web Audio cues. That keeps the repo readable and prevents audio assets from dominating the source files.
+- P1 starts on keyboard.
+- P2 now starts on keyboard by default.
+- Both robots start with 8 fuel.
+- The neutral zone has 24 additional fuel compared with the previous layout.
+- Each outpost has a 24 fuel stack in front of it.
+- Red outpost fuel is placed on the lower red wall side.
+- Blue outpost fuel is mirrored on the upper blue wall side.
+
+## Audio notes
+
+Audio cues now live in `src/assets/audio/` and are loaded by `src/scripts/audio.js`. The exact original embedded base64 audio blobs were not present in the refactored repo, so this update includes source-managed cue files plus a generated fallback. To restore the original sounds byte-for-byte, replace the WAV files in `src/assets/audio/` with the original cue files and keep the same filenames, or update `AUDIO_SOURCES` in `audio.js`.

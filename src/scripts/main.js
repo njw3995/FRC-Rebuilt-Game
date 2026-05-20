@@ -1,5 +1,5 @@
 import { FRAME_RATE } from './constants.js';
-import { configureCanvas, createRobots, initField, spawnBalls } from './field.js';
+import { configureCanvas, createRobots, initField, resetBots, spawnBalls } from './field.js';
 import { initInputListeners, refreshInputLabels } from './input.js';
 import { update, draw } from './game.js';
 import { updateHubUI } from './match.js';
@@ -9,6 +9,7 @@ configureCanvas();
 createRobots();
 initField();
 spawnBalls();
+resetBots();
 updateHubUI(false, false);
 refreshInputLabels();
 initInputListeners();

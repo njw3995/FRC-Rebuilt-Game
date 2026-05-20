@@ -16,7 +16,7 @@ export const state = {
     sameTeamMode: false,
     p2Enabled: true,
     p1Input: 'keyboard',
-    p2Input: 'controller',
+    p2Input: 'keyboard',
     p1StartIdx: 0,
     p2StartIdx: 0,
     p1UnstickUsed: false,

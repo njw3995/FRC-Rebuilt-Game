@@ -21,13 +21,6 @@ function getAvailableGamepadIndices() {
     return indices;
 }
 
-function isConnectedGamepadIndex(index) {
-    if (index === null || index === undefined || !navigator.getGamepads) return false;
-
-    const gp = navigator.getGamepads()[index];
-    return !!(gp && gp.connected);
-}
-
 function playerNeedsController(playerId) {
     if (playerId === 'p1') {
         return state.p1Input === 'controller';
@@ -37,45 +30,19 @@ function playerNeedsController(playerId) {
 }
 
 export function assignGamepads() {
-    if (!playerNeedsController('p1')) {
-        state.gamepadAssignments.p1 = null;
-    }
-
-    if (!playerNeedsController('p2')) {
-        state.gamepadAssignments.p2 = null;
-    }
-
-    if (!isConnectedGamepadIndex(state.gamepadAssignments.p1)) {
-        state.gamepadAssignments.p1 = null;
-    }
-
-    if (!isConnectedGamepadIndex(state.gamepadAssignments.p2)) {
-        state.gamepadAssignments.p2 = null;
-    }
-
-    if (
-        state.gamepadAssignments.p1 !== null &&
-        state.gamepadAssignments.p2 !== null &&
-        state.gamepadAssignments.p1 === state.gamepadAssignments.p2
-    ) {
-        state.gamepadAssignments.p2 = null;
-    }
+    state.gamepadAssignments.p1 = null;
+    state.gamepadAssignments.p2 = null;
 
     const available = getAvailableGamepadIndices();
-    const used = new Set(
-        Object.values(state.gamepadAssignments).filter(index => index !== null)
-    );
+    let nextIndex = 0;
 
-    for (const playerId of ['p1', 'p2']) {
-        if (!playerNeedsController(playerId)) continue;
-        if (state.gamepadAssignments[playerId] !== null) continue;
+    if (playerNeedsController('p1') && available[nextIndex] !== undefined) {
+        state.gamepadAssignments.p1 = available[nextIndex];
+        nextIndex++;
+    }
 
-        const nextIndex = available.find(index => !used.has(index));
-
-        if (nextIndex !== undefined) {
-            state.gamepadAssignments[playerId] = nextIndex;
-            used.add(nextIndex);
-        }
+    if (playerNeedsController('p2') && available[nextIndex] !== undefined) {
+        state.gamepadAssignments.p2 = available[nextIndex];
     }
 }
 

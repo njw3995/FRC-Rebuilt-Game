@@ -58,9 +58,6 @@ function startMatchCountdown() {
     state.scoreBlue = 0;
     setScoreDisplays();
 
-    state.botRed.inventory = 0;
-    state.botBlue.inventory = 0;
-    setHeldDisplays();
 
     state.autoScoreRed = 0;
     state.autoScoreBlue = 0;
@@ -112,9 +109,6 @@ function resetField() {
     state.scoreBlue = 0;
     setScoreDisplays();
 
-    state.botRed.inventory = 0;
-    state.botBlue.inventory = 0;
-    setHeldDisplays();
 
     dom.matchClock.innerText = '2:20';
     dom.matchClock.className = 'stopped';

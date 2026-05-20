@@ -427,6 +427,14 @@ export function draw() {
             ctx.strokeStyle = '#444';
             ctx.lineWidth = 2;
             ctx.strokeRect(z.x, z.y, z.w, z.h);
+        } else if (z.type === 'outpost') {
+            ctx.fillStyle = '#1f2937';
+            ctx.fillRect(z.x, z.y, z.w, z.h);
+            ctx.strokeStyle = `rgba(${c}, 0.9)`;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(z.x, z.y, z.w, z.h);
+            ctx.fillStyle = `rgba(${c}, 0.25)`;
+            ctx.fillRect(z.x + 4, z.y + 4, z.w - 8, z.h - 8);
         } else if (z.type === 'depot') {
             ctx.fillStyle = `rgba(${c}, 0.15)`;
             ctx.fillRect(z.x, z.y, z.w, z.h);

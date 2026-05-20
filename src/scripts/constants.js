@@ -58,12 +58,23 @@ export const TRENCH_L = 49.86 * S;
 export const RED_SHOOT_LIMIT = (156.61 * S) + (BUMP_W / 2);
 export const BLUE_SHOOT_LIMIT = FIELD_W - (156.61 * S) - (BUMP_W / 2);
 
+export const STARTING_FUEL = 8;
+
 export const TOWER_OFFSET = 144 * S;
 export const TOWER_DIM = 45 * S;
 export const TOWER_WALL_DEPTH = 6 * S;
 
 export const DEPOT_W = 24 * S;
 export const DEPOT_H = 42 * S;
+
+export const OUTPOST_W = 28 * S;
+export const OUTPOST_H = 42 * S;
+export const OUTPOST_FUEL_COLUMNS = 4;
+export const OUTPOST_FUEL_ROWS = 6;
+export const NEUTRAL_FUEL_COLUMNS = 12;
+export const NEUTRAL_FUEL_ROWS = 30;
+export const DEPOT_FUEL_COLUMNS = 4;
+export const DEPOT_FUEL_ROWS = 6;
 
 export const MATCH_PHASES = [
     { name: 'AUTO',             start: 0,   end: 20,  redActive: true,  blueActive: true  },
@@ -100,10 +111,10 @@ export const KEYBOARD_LAYOUTS = {
         down: ['KeyS'],
         left: ['KeyA'],
         right: ['KeyD'],
-        turnLeft: ['KeyJ'],
-        turnRight: ['KeyL'],
+        turnLeft: ['KeyE'],
+        turnRight: ['KeyR'],
         action: ['Space'],
-        toggle: ['KeyE']
+        toggle: ['KeyQ']
     },
 
     p2: {
@@ -111,33 +122,32 @@ export const KEYBOARD_LAYOUTS = {
         down: ['ArrowDown'],
         left: ['ArrowLeft'],
         right: ['ArrowRight'],
-        turnLeft: ['Comma', 'Numpad4'],
-        turnRight: ['Period', 'Numpad6'],
-        action: ['Enter'],
-        toggle: ['ShiftRight', 'Slash']
+        turnLeft: ['Period', 'Numpad4'],
+        turnRight: ['Slash', 'Numpad6'],
+        action: ['ControlRight'],
+        toggle: ['ShiftRight']
     }
 };
 
 export const BLOCKED_KEYS = [
     'Space',
-    'Enter',
+    'ControlRight',
     'KeyW',
     'KeyA',
     'KeyS',
     'KeyD',
-    'KeyJ',
-    'KeyL',
+    'KeyQ',
     'KeyE',
+    'KeyR',
     'ArrowUp',
     'ArrowDown',
     'ArrowLeft',
     'ArrowRight',
-    'Comma',
     'Period',
+    'Slash',
     'Numpad4',
     'Numpad6',
-    'ShiftRight',
-    'Slash'
+    'ShiftRight'
 ];
 
 export const FRAME_RATE = 60;

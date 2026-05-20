@@ -57,7 +57,7 @@ Select the branch and `/root` as the publishing source.
 - P1 starts on keyboard.
 - P2 now starts on keyboard by default.
 - Both robots start with 8 fuel.
-- The neutral zone has 24 additional fuel compared with the previous layout.
+- The neutral zone has 32 additional fuel compared with the previous layout.
 - Outposts are outside the field boundary, with their inner edge aligned to the arena wall and a larger visual box for readable status text.
 - Red outpost is on the lower red wall side.
 - Blue outpost is mirrored on the upper blue wall side.

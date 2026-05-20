@@ -12,9 +12,11 @@ import {
     HUB_S,
     NEUTRAL_FUEL_COLUMNS,
     NEUTRAL_FUEL_ROWS,
-    OUTPOST_FUEL_COLUMNS,
-    OUTPOST_FUEL_ROWS,
+    OUTPOST_FEEDER_MAX_FUEL,
     OUTPOST_H,
+    OUTPOST_HUMAN_PLAYERS,
+    OUTPOST_MAX_FUEL,
+    OUTPOST_STARTING_FUEL,
     OUTPOST_W,
     S,
     STARTING_FUEL,
@@ -36,11 +38,12 @@ export function configureCanvas() {
 function addElement(x, y, w, h, type, side) {
     const el = { x, y, w, h, type, side };
 
-    if (['hub', 'barrier', 'trench', 'towerWall', 'outpost'].includes(type)) {
+    if (['hub', 'barrier', 'trench', 'towerWall'].includes(type)) {
         state.obstacles.push(el);
     }
 
     state.zones.push(el);
+    return el;
 }
 
 function buildLane(x, hubY, side, isTop) {
@@ -74,6 +77,10 @@ function getRedDepotY() {
 
 function getBlueDepotY() {
     return FIELD_H - 82.32 * S - DEPOT_H / 2;
+}
+
+export function getOutpostZone(side) {
+    return state.zones.find(z => z.type === 'outpost' && z.side === side) || null;
 }
 
 function getRedOutpostY() {
@@ -114,6 +121,63 @@ function spawnCenteredFuelGrid(centerX, centerY, columns, rows) {
     spawnFuelGrid(centerX - width / 2, centerY - height / 2, columns, rows);
 }
 
+function createOutpostState(side) {
+    return {
+        side,
+        reserveFuel: 0,
+        feederFuel: OUTPOST_STARTING_FUEL,
+        feedAccumulator: 0,
+        refillAccumulator: 0,
+        humanNextThrowTimes: Array.from({ length: OUTPOST_HUMAN_PLAYERS }, () => 0.1 + Math.random() * 0.4)
+    };
+}
+
+export function resetOutposts() {
+    state.outposts.red = createOutpostState('red');
+    state.outposts.blue = createOutpostState('blue');
+}
+
+export function getOutpostTotalFuel(side) {
+    const outpost = state.outposts[side];
+    if (!outpost) return 0;
+    return outpost.reserveFuel + outpost.feederFuel;
+}
+
+export function canAddFuelToOutpost(side) {
+    return getOutpostTotalFuel(side) < OUTPOST_MAX_FUEL;
+}
+
+export function addFuelToOutpost(side, amount = 1) {
+    const outpost = state.outposts[side];
+    if (!outpost) return 0;
+
+    let added = 0;
+
+    while (added < amount && getOutpostTotalFuel(side) < OUTPOST_MAX_FUEL) {
+        outpost.reserveFuel++;
+        added++;
+    }
+
+    return added;
+}
+
+export function takeFuelFromOutpostForHuman(side) {
+    const outpost = state.outposts[side];
+    if (!outpost) return false;
+
+    if (outpost.reserveFuel > 0) {
+        outpost.reserveFuel--;
+        return true;
+    }
+
+    if (outpost.feederFuel > 0) {
+        outpost.feederFuel--;
+        return true;
+    }
+
+    return false;
+}
+
 export function initField() {
     state.obstacles = [];
     state.zones = [];
@@ -126,7 +190,7 @@ export function initField() {
     buildLane(redHubX, hubY, 'red', false);
     addElement(0, TOWER_OFFSET, TOWER_DIM, TOWER_DIM, 'tower', 'red');
     addElement(TOWER_DIM - TOWER_WALL_DEPTH, TOWER_OFFSET, TOWER_WALL_DEPTH, TOWER_DIM, 'towerWall', 'red');
-    addElement(0, getRedOutpostY(), OUTPOST_W, OUTPOST_H, 'outpost', 'red');
+    addElement(-OUTPOST_W, getRedOutpostY(), OUTPOST_W, OUTPOST_H, 'outpost', 'red');
 
     const blueHubX = FIELD_W - 156.61 * S - HUB_S;
     addElement(blueHubX, hubY, HUB_S, HUB_S, 'hub', 'blue');
@@ -134,7 +198,7 @@ export function initField() {
     buildLane(FIELD_W - 156.61 * S - BUMP_W, hubY, 'blue', false);
     addElement(FIELD_W - TOWER_DIM, FIELD_H - TOWER_OFFSET - TOWER_DIM, TOWER_DIM, TOWER_DIM, 'tower', 'blue');
     addElement(FIELD_W - TOWER_DIM, FIELD_H - TOWER_OFFSET - TOWER_DIM, TOWER_WALL_DEPTH, TOWER_DIM, 'towerWall', 'blue');
-    addElement(FIELD_W - OUTPOST_W, getBlueOutpostY(), OUTPOST_W, OUTPOST_H, 'outpost', 'blue');
+    addElement(FIELD_W, getBlueOutpostY(), OUTPOST_W, OUTPOST_H, 'outpost', 'blue');
 
     addElement(0, getRedDepotY(), DEPOT_W, DEPOT_H, 'depot', 'red');
     addElement(FIELD_W - DEPOT_W, getBlueDepotY(), DEPOT_W, DEPOT_H, 'depot', 'blue');
@@ -169,23 +233,6 @@ export function spawnBalls() {
             ));
         }
     }
-
-    const outpostFuelWidth = (OUTPOST_FUEL_COLUMNS - 1) * BALL_R * 2;
-    const outpostFuelGap = BALL_R * 2;
-
-    spawnCenteredFuelGrid(
-        OUTPOST_W + outpostFuelGap + outpostFuelWidth / 2,
-        getRedOutpostY() + OUTPOST_H / 2,
-        OUTPOST_FUEL_COLUMNS,
-        OUTPOST_FUEL_ROWS
-    );
-
-    spawnCenteredFuelGrid(
-        FIELD_W - OUTPOST_W - outpostFuelGap - outpostFuelWidth / 2,
-        getBlueOutpostY() + OUTPOST_H / 2,
-        OUTPOST_FUEL_COLUMNS,
-        OUTPOST_FUEL_ROWS
-    );
 }
 
 export function createRobots() {

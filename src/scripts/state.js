@@ -33,6 +33,21 @@ export const state = {
     obstacles: [],
     zones: [],
 
+    outposts: {
+        red: null,
+        blue: null
+    },
+
+    humanShootingEnabled: {
+        red: true,
+        blue: true
+    },
+
+    outpostControllerTogglePressed: {
+        p1: false,
+        p2: false
+    },
+
     scoreRed: 0,
     scoreBlue: 0,
     keys: {},

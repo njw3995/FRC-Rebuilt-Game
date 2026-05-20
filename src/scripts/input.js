@@ -79,6 +79,13 @@ export function refreshInputLabels() {
     dom.p2InputToggle.innerText = `P2: ${getInputLabel('p2')}`;
 }
 
+export function isControllerButtonPressed(playerId, buttonIndex) {
+    const gp = getPlayerGamepad(playerId);
+    if (!gp || !gp.buttons[buttonIndex]) return false;
+
+    return gp.buttons[buttonIndex].pressed;
+}
+
 export function getInputs(playerId) {
     let x = 0;
     let y = 0;

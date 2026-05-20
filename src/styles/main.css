@@ -233,7 +233,7 @@ canvas {
     display: flex;
     flex-direction: column;
     gap: 5px;
-    width: 190px; 
+    width: 225px; 
     transition: opacity 0.2s, transform 0.2s;
     transform-origin: top right; 
 }
@@ -255,7 +255,7 @@ button {
     background: #fbbf24;
     color: #000;
     transition: transform 0.1s;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
 }
 
 button:active {

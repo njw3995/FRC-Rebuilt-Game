@@ -48,7 +48,7 @@ export const BOT_MODELS = {
 export const S = 1.6;
 export const FIELD_W = 651.22 * S;
 export const FIELD_H = 317.69 * S;
-export const WALL_VISUAL = 20;
+export const WALL_VISUAL = 105;
 export const BALL_R = (5.91 * S) / 2;
 export const HUB_S = 47 * S;
 export const BUMP_W = 44.4 * S;
@@ -67,10 +67,17 @@ export const TOWER_WALL_DEPTH = 6 * S;
 export const DEPOT_W = 24 * S;
 export const DEPOT_H = 42 * S;
 
-export const OUTPOST_W = 28 * S;
-export const OUTPOST_H = 42 * S;
-export const OUTPOST_FUEL_COLUMNS = 4;
-export const OUTPOST_FUEL_ROWS = 6;
+export const OUTPOST_W = 58 * S;
+export const OUTPOST_H = 72 * S;
+export const OUTPOST_STARTING_FUEL = 24;
+export const OUTPOST_MAX_FUEL = 48;
+export const OUTPOST_FEEDER_MAX_FUEL = 24;
+export const OUTPOST_ROBOT_FEED_RATE = 18;
+export const OUTPOST_FEEDER_REFILL_RATE = 8;
+export const OUTPOST_HUMAN_PLAYERS = 3;
+export const OUTPOST_HUMAN_MIN_RATE = 0.5;
+export const OUTPOST_HUMAN_MAX_RATE = 1.5;
+export const OUTPOST_HUMAN_SHOOT_STOP_LEAD_TIME = 2;
 export const NEUTRAL_FUEL_COLUMNS = 12;
 export const NEUTRAL_FUEL_ROWS = 30;
 export const DEPOT_FUEL_COLUMNS = 4;
@@ -114,7 +121,7 @@ export const KEYBOARD_LAYOUTS = {
         turnLeft: ['KeyE'],
         turnRight: ['KeyR'],
         action: ['Space'],
-        toggle: ['KeyQ']
+        toggle: ['KeyF']
     },
 
     p2: {
@@ -129,6 +136,13 @@ export const KEYBOARD_LAYOUTS = {
     }
 };
 
+export const OUTPOST_TOGGLE_KEYS = {
+    red: 'KeyQ',
+    blue: 'AltRight'
+};
+
+export const OUTPOST_CONTROLLER_TOGGLE_BUTTON = 3;
+
 export const BLOCKED_KEYS = [
     'Space',
     'ControlRight',
@@ -139,6 +153,8 @@ export const BLOCKED_KEYS = [
     'KeyQ',
     'KeyE',
     'KeyR',
+    'KeyF',
+    'AltRight',
     'ArrowUp',
     'ArrowDown',
     'ArrowLeft',

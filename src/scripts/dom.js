@@ -27,6 +27,8 @@ export const dom = {
     startButton: document.getElementById('start-btn'),
     resetButton: document.getElementById('reset-btn'),
     teamModeToggle: document.getElementById('team-mode-toggle'),
+    redHumanToggle: document.getElementById('red-human-toggle'),
+    blueHumanToggle: document.getElementById('blue-human-toggle'),
 
     botRedToggle: document.getElementById('bot-red-toggle'),
     botBlueToggle: document.getElementById('bot-blue-toggle'),

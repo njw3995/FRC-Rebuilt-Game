@@ -1,7 +1,7 @@
-import { BOT_MODELS, START_LABELS } from './constants.js';
+import { BOT_MODELS, OUTPOST_TOGGLE_KEYS, START_LABELS } from './constants.js';
 import { dom } from './dom.js';
 import { state } from './state.js';
-import { getBlueStartPos, getRedStartPos, resetBots, spawnBalls } from './field.js';
+import { getBlueStartPos, getRedStartPos, resetBots, resetOutposts, spawnBalls } from './field.js';
 import { refreshInputLabels } from './input.js';
 import { playSound } from './audio.js';
 import { updateHubUI } from './match.js';
@@ -65,6 +65,7 @@ function startMatchCountdown() {
     state.currentPhaseIdx = -1;
 
     spawnBalls();
+    resetOutposts();
     resetBots();
 
     state.startCountdown = 3;
@@ -120,7 +121,27 @@ function resetField() {
     disableUnstickButtons();
     updateHubUI(false, false);
     spawnBalls();
+    resetOutposts();
     resetBots();
+}
+
+
+export function refreshHumanPlayerToggleLabels() {
+    dom.redHumanToggle.innerText = state.humanShootingEnabled.red
+        ? 'RED OUTPOST: SHOOT'
+        : 'RED OUTPOST: FEED';
+
+    dom.blueHumanToggle.innerText = state.humanShootingEnabled.blue
+        ? 'BLUE OUTPOST: SHOOT'
+        : 'BLUE OUTPOST: FEED';
+
+    dom.redHumanToggle.title = 'Q or controller Y toggles red outpost between SHOOT and FEED.';
+    dom.blueHumanToggle.title = 'Right Alt toggles blue outpost, or red outpost in co-op mode. Controller Y toggles the controller players alliance outpost.';
+}
+
+export function toggleHumanPlayerShooting(side) {
+    state.humanShootingEnabled[side] = !state.humanShootingEnabled[side];
+    refreshHumanPlayerToggleLabels();
 }
 
 function cycleBotModel(bot, button, labelPrefix) {
@@ -212,6 +233,26 @@ export function initUiListeners() {
         this.innerText = `P2 START: ${START_LABELS[state.p2StartIdx]}`;
         resetBots();
     };
+
+    dom.redHumanToggle.onclick = () => toggleHumanPlayerShooting('red');
+
+    dom.blueHumanToggle.onclick = () => toggleHumanPlayerShooting('blue');
+
+    window.addEventListener('keydown', event => {
+        if (event.repeat) return;
+
+        if (event.code === OUTPOST_TOGGLE_KEYS.red) {
+            event.preventDefault();
+            toggleHumanPlayerShooting('red');
+        }
+
+        if (event.code === OUTPOST_TOGGLE_KEYS.blue) {
+            event.preventDefault();
+            toggleHumanPlayerShooting(state.sameTeamMode ? 'red' : 'blue');
+        }
+    }, { passive: false });
+
+    refreshHumanPlayerToggleLabels();
 
     dom.teamModeToggle.onclick = function toggleTeamMode() {
         if (state.matchRunning || state.startCountdown > 0) return;

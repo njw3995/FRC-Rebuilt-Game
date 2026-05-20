@@ -17,6 +17,28 @@ function getDisplayTime(elapsed) {
     return '0:00';
 }
 
+
+export function isHubActiveAt(side, elapsed) {
+    if (elapsed < 0 || elapsed >= 163) return false;
+
+    const phaseIdx = MATCH_PHASES.findIndex(
+        p => elapsed >= p.start && elapsed < p.end
+    );
+
+    if (phaseIdx === -1) return false;
+
+    const phase = MATCH_PHASES[phaseIdx];
+    let redActive = phase.redActive;
+    let blueActive = phase.blueActive;
+
+    if (redActive === null) {
+        redActive = SHIFT_STATES[state.autoWinner][phaseIdx - 3].redActive;
+        blueActive = SHIFT_STATES[state.autoWinner][phaseIdx - 3].blueActive;
+    }
+
+    return side === 'red' ? redActive : blueActive;
+}
+
 function triggerShiftFlash() {
     dom.shiftFlash.classList.add('flash');
     setTimeout(() => dom.shiftFlash.classList.remove('flash'), 200);

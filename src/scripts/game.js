@@ -8,7 +8,6 @@ import {
     OUTPOST_FEEDER_REFILL_RATE,
     OUTPOST_HUMAN_MAX_RATE,
     OUTPOST_HUMAN_MIN_RATE,
-    OUTPOST_CONTROLLER_TOGGLE_BUTTON,
     OUTPOST_HUMAN_SHOOT_STOP_LEAD_TIME,
     OUTPOST_ROBOT_FEED_RATE,
     WALL_VISUAL
@@ -16,7 +15,7 @@ import {
 import { ctx } from './dom.js';
 import { dom } from './dom.js';
 import { state } from './state.js';
-import { getInputs, assignGamepads, isControllerButtonPressed } from './input.js';
+import { getInputs, assignGamepads, isControllerControlPressed } from './input.js';
 import { isHubActiveAt, tickMatch, updateHudBar } from './match.js';
 import { circleRectCollision, rectRect, resolveBallCollision } from './math.js';
 import { toggleHumanPlayerShooting } from './ui.js';
@@ -34,13 +33,13 @@ function applyUnstickFreeze(now, playerState, freezeUntil) {
 }
 
 function updateControllerOutpostToggles() {
-    const p1Pressed = isControllerButtonPressed('p1', OUTPOST_CONTROLLER_TOGGLE_BUTTON);
+    const p1Pressed = isControllerControlPressed('p1', 'outpost');
     if (p1Pressed && !state.outpostControllerTogglePressed.p1) {
         toggleHumanPlayerShooting('red');
     }
     state.outpostControllerTogglePressed.p1 = p1Pressed;
 
-    const p2Pressed = state.p2Enabled && isControllerButtonPressed('p2', OUTPOST_CONTROLLER_TOGGLE_BUTTON);
+    const p2Pressed = state.p2Enabled && isControllerControlPressed('p2', 'outpost');
     if (p2Pressed && !state.outpostControllerTogglePressed.p2) {
         toggleHumanPlayerShooting(state.sameTeamMode ? 'red' : 'blue');
     }

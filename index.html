@@ -11,109 +11,82 @@
 <div id="shift-flash"></div>
 
 <div id="controls-modal" class="hidden">
-    <div class="modal-content">
-        <h2>GAME CONTROLS</h2>
-        
-        <div class="control-section">
-            <h3>Keyboard Player 1</h3>
-            <p><b>W</b> <b>A</b> <b>S</b> <b>D</b> = Move</p>
-            <p><b>E</b> / <b>R</b> = Turn</p>
-            <p><b>Space</b> = Shoot/Pass</p>
-            <p><b>F</b> = Toggle Blitz intake side</p>
+    <div class="modal-content controls-config-modal">
+        <h2>CONFIGURE CONTROLS</h2>
+        <p class="controls-config-help">Click any control, then press a keyboard key or move/press the controller input you want to use. Hover a row to see what that control does.</p>
+        <div id="controls-config-content"></div>
+        <div class="modal-actions">
+            <button id="reset-controls-btn">RESET DEFAULTS</button>
+            <button id="close-controls-btn">CLOSE</button>
         </div>
-
-        <div class="control-section">
-            <h3>Keyboard Player 2</h3>
-            <p><b>Arrows</b> = Move</p>
-            <p><b>.</b> / <b>/</b> = Turn</p>
-            <p><b>Right Ctrl</b> = Shoot/Pass</p>
-            <p><b>Right Shift</b> = Toggle Blitz intake side</p>
-        </div>
-        
-        <div class="control-section">
-            <h3>Controller</h3>
-            <p><b>Left Joystick</b> = Move</p>
-            <p><b>Right Joystick</b> = Turn</p>
-            <p><b>A</b>, <b>Right Bumper</b>, or <b>Right Trigger</b> = Shoot/Pass</p>
-            <p><b>Left Trigger</b> = Toggle Blitz intake side</p>
-        </div>
-        
-        <div class="control-section">
-            <h3>Human Players</h3>
-            <p><b>Q</b> toggles red outpost. <b>Right Alt</b> toggles blue outpost, or red outpost in co-op mode.</p>
-            <p><b>Controller Y</b> toggles your alliance outpost.</p>
-            <p><b>SHOOT</b> = humans shoot when the hub is active. <b>FEED</b> = humans hold fuel for robot loading.</p>
-        </div>
-
-        <div class="control-section highlight">
-            <h3>Blitz Robot</h3>
-            <p>The player toggle input changes which side the intake is on.</p>
-            <p>P1 keyboard uses <b>F</b>. P2 keyboard uses <b>Right Shift</b>. Controller uses <b>Left Trigger</b>.</p>
-        </div>
-        
-        <button id="close-controls-btn">CLOSE</button>
     </div>
 </div>
 
-<div class="hud" id="main-hud">
-    <div class="stat" style="color: #ef4444;">RED: <span id="scoreRedDisplay">0</span></div>
-    <div class="stat" style="color: #ef4444;">FUEL: <span id="heldRed">0</span></div>
-    <div class="shift-divider" style="color: #666;">|</div>
-    <div class="stat" style="color: #3b82f6;">BLUE: <span id="scoreBlueDisplay">0</span></div>
-    <div class="stat" style="color: #3b82f6;">FUEL: <span id="heldBlue">0</span></div>
-</div>
+<div id="game-viewport">
+    <div id="game-shell">
+        <div class="hud" id="main-hud">
+            <div class="stat" style="color: #ef4444;">RED: <span id="scoreRedDisplay">0</span></div>
+            <div class="stat" style="color: #ef4444;">FUEL: <span id="heldRed">0</span></div>
+            <div class="shift-divider" style="color: #666;">|</div>
+            <div class="stat" style="color: #3b82f6;">BLUE: <span id="scoreBlueDisplay">0</span></div>
+            <div class="stat" style="color: #3b82f6;">FUEL: <span id="heldBlue">0</span></div>
+        </div>
 
-<div id="timer-panel">
-    <div id="match-clock" class="stopped">2:20</div>
-    <div id="phase-label">MATCH NOT STARTED</div>
-    <div id="phase-timer"></div>
-</div>
+        <div id="timer-panel">
+            <div id="match-clock" class="stopped">2:20</div>
+            <div id="phase-label">MATCH NOT STARTED</div>
+            <div id="phase-timer"></div>
+        </div>
 
-<div id="auto-winner">AUTO WON BY RED</div>
+        <div id="auto-winner">AUTO WON BY RED</div>
 
-<div id="shift-panel">
-    <span id="shift-label">HUB STATUS</span>
-    <div class="hub-indicator hub-inactive" id="hub-red">
-        <div class="hub-name">RED HUB</div>
-        <div class="hub-status-dot"></div>
-        <div id="hub-red-txt">INACTIVE</div>
-    </div>
-    <div class="shift-divider">|</div>
-    <div class="hub-indicator hub-inactive" id="hub-blue">
-        <div class="hub-name">BLUE HUB</div>
-        <div class="hub-status-dot"></div>
-        <div id="hub-blue-txt">INACTIVE</div>
+        <div id="shift-panel">
+            <span id="shift-label">HUB STATUS</span>
+            <div class="hub-indicator hub-inactive" id="hub-red">
+                <div class="hub-name">RED HUB</div>
+                <div class="hub-status-dot"></div>
+                <div id="hub-red-txt">INACTIVE</div>
+            </div>
+            <div class="shift-divider">|</div>
+            <div class="hub-indicator hub-inactive" id="hub-blue">
+                <div class="hub-name">BLUE HUB</div>
+                <div class="hub-status-dot"></div>
+                <div id="hub-blue-txt">INACTIVE</div>
+            </div>
+        </div>
+
+        <canvas id="field"></canvas>
     </div>
 </div>
 
 <div class="controls-wrapper">
     <button id="toggle-controls-btn">☰ HIDE CONTROLS</button>
+
     <div class="controls" id="control-panel">
-        <button id="show-controls-btn">🎮 VIEW GAME CONTROLS</button>
-        
+        <button id="show-controls-btn">🎮 CONFIGURE CONTROLS</button>
+
         <button id="start-btn">▶ START MATCH</button>
         <button id="team-mode-toggle" class="purple-team">TEAM: SEPARATE</button>
+
         <button id="red-human-toggle" class="red-team">RED OUTPOST: SHOOT</button>
         <button id="blue-human-toggle" class="blue-team">BLUE OUTPOST: SHOOT</button>
-        
+
         <button id="bot-red-toggle" class="red-team">PLAYER 1: turret</button>
         <button id="p1-input-toggle" class="red-team">P1: KEYBOARD</button>
         <button id="p1-start-toggle" class="red-team">P1 START: HUB</button>
         <button id="p1-unstick" class="red-team btn-unstick disabled">P1 UNSTICK (1)</button>
-        
+
         <div style="height: 5px;"></div>
-        
+
         <button id="p2-toggle" class="purple-team">PLAYER 2: ON</button>
         <button id="bot-blue-toggle" class="blue-team">PLAYER 2: double turret</button>
         <button id="p2-input-toggle" class="blue-team">P2: KEYBOARD</button>
         <button id="p2-start-toggle" class="blue-team">P2 START: HUB</button>
         <button id="p2-unstick" class="blue-team btn-unstick disabled">P2 UNSTICK (1)</button>
-        
+
         <button id="reset-btn">RESET FIELD</button>
     </div>
 </div>
-
-<canvas id="field"></canvas>
 
 <script type="module" src="./src/scripts/main.js"></script>
 </body>

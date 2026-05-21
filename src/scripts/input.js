@@ -1,9 +1,18 @@
-import { BLOCKED_KEYS, KEYBOARD_LAYOUTS } from './constants.js';
+import {
+    BLOCKED_KEYS,
+    CONTROLLER_DEADZONE,
+    CONTROLLER_LAYOUTS,
+    KEYBOARD_LAYOUTS
+} from './constants.js';
 import { dom } from './dom.js';
 import { state } from './state.js';
 
 function keyPressed(codes) {
     return codes.some(code => state.keys[code]);
+}
+
+function controlsModalOpen() {
+    return dom.controlsModal && !dom.controlsModal.classList.contains('hidden');
 }
 
 function getAvailableGamepadIndices() {
@@ -79,11 +88,98 @@ export function refreshInputLabels() {
     dom.p2InputToggle.innerText = `P2: ${getInputLabel('p2')}`;
 }
 
+function applyDeadzone(value) {
+    return Math.abs(value) > CONTROLLER_DEADZONE ? value : 0;
+}
+
+function getButtonValue(gp, index) {
+    const button = gp && gp.buttons[index];
+    if (!button) return 0;
+
+    if (typeof button.value === 'number') {
+        return button.value;
+    }
+
+    return button.pressed ? 1 : 0;
+}
+
+function getControllerSourceValue(gp, source) {
+    if (!gp || !source) return 0;
+
+    if (source.kind === 'axis') {
+        const raw = gp.axes[source.index] || 0;
+        const value = applyDeadzone(raw) * (source.direction || 1);
+        return value;
+    }
+
+    if (source.kind === 'button') {
+        return getButtonValue(gp, source.index);
+    }
+
+    return 0;
+}
+
+function getControllerActionValue(gp, sources) {
+    if (!Array.isArray(sources)) {
+        return Math.max(0, getControllerSourceValue(gp, sources));
+    }
+
+    let value = 0;
+
+    for (const source of sources) {
+        value = Math.max(value, getControllerActionValue(gp, source));
+    }
+
+    return value;
+}
+
+export function isControllerControlPressed(playerId, actionName) {
+    const gp = getPlayerGamepad(playerId);
+    const layout = CONTROLLER_LAYOUTS[playerId];
+    if (!gp || !layout || !layout[actionName]) return false;
+
+    return getControllerActionValue(gp, layout[actionName]) > 0.2;
+}
+
 export function isControllerButtonPressed(playerId, buttonIndex) {
     const gp = getPlayerGamepad(playerId);
     if (!gp || !gp.buttons[buttonIndex]) return false;
 
     return gp.buttons[buttonIndex].pressed;
+}
+
+function getControllerInputs(playerId) {
+    const gp = getPlayerGamepad(playerId);
+    const layout = CONTROLLER_LAYOUTS[playerId];
+
+    let x = 0;
+    let y = 0;
+    let rot = 0;
+    let act = false;
+    let toggleIn = false;
+
+    if (!gp || !layout) {
+        return { x, y, rot, act, toggleIn };
+    }
+
+    x = getControllerSourceValue(gp, layout.moveX);
+    y = getControllerSourceValue(gp, layout.moveY);
+
+    rot = getControllerSourceValue(gp, layout.turnAxis);
+
+    const turnLeft = getControllerActionValue(gp, layout.turnLeft);
+    const turnRight = getControllerActionValue(gp, layout.turnRight);
+
+    if (turnLeft > 0.05 || turnRight > 0.05) {
+        rot += turnRight - turnLeft;
+    }
+
+    rot = Math.max(-1, Math.min(1, rot));
+
+    act = getControllerActionValue(gp, layout.action) > 0.2;
+    toggleIn = getControllerActionValue(gp, layout.toggle) > 0.2;
+
+    return { x, y, rot, act, toggleIn };
 }
 
 export function getInputs(playerId) {
@@ -93,7 +189,7 @@ export function getInputs(playerId) {
     let act = false;
     let toggleIn = false;
 
-    if (state.startCountdown > 0 || state.endCooldown > 0) {
+    if (state.startCountdown > 0 || state.endCooldown > 0 || controlsModalOpen()) {
         return { x, y, rot, act, toggleIn };
     }
 
@@ -111,27 +207,7 @@ export function getInputs(playerId) {
         if (keyPressed(layout.action)) act = true;
         if (keyPressed(layout.toggle)) toggleIn = true;
     } else if (type === 'controller') {
-        const gp = getPlayerGamepad(playerId);
-
-        if (gp) {
-            if (gp.axes.length > 0 && Math.abs(gp.axes[0]) > 0.15) x = gp.axes[0];
-            if (gp.axes.length > 1 && Math.abs(gp.axes[1]) > 0.15) y = gp.axes[1];
-
-            const rotAxis = Math.abs(gp.axes[2] || 0) > 0.15
-                ? gp.axes[2]
-                : (gp.axes[3] || 0);
-
-            if (Math.abs(rotAxis) > 0.15) rot = rotAxis;
-
-            const b = gp.buttons;
-            const aButton = b[0] && b[0].pressed;
-            const rightBumper = b[5] && b[5].pressed;
-            const rightTrigger = b[7] && (b[7].pressed || b[7].value > 0.2);
-            const leftTrigger = b[6] && (b[6].pressed || b[6].value > 0.2);
-
-            if (aButton || rightBumper || rightTrigger) act = true;
-            if (leftTrigger) toggleIn = true;
-        }
+        ({ x, y, rot, act, toggleIn } = getControllerInputs(playerId));
     }
 
     return { x, y, rot, act, toggleIn };
@@ -139,7 +215,9 @@ export function getInputs(playerId) {
 
 export function initInputListeners() {
     window.addEventListener('keydown', e => {
-        state.keys[e.code] = true;
+        if (!controlsModalOpen()) {
+            state.keys[e.code] = true;
+        }
 
         if (BLOCKED_KEYS.includes(e.code)) {
             e.preventDefault();

@@ -33,6 +33,86 @@ import { Robot } from './robot.js';
 export function configureCanvas() {
     dom.canvas.width = FIELD_W + WALL_VISUAL * 2;
     dom.canvas.height = FIELD_H + WALL_VISUAL * 2;
+
+    dom.gameShell.style.width = `${dom.canvas.width}px`;
+    dom.gameShell.style.height = `${dom.canvas.height}px`;
+
+    resizeGameDisplay();
+}
+
+export function resizeGameDisplay() {
+    if (!dom.canvas || !dom.gameViewport || !dom.gameShell) {
+        return;
+    }
+
+    const naturalWidth = dom.canvas.width;
+    const naturalHeight = dom.canvas.height;
+
+    if (naturalWidth <= 0 || naturalHeight <= 0) {
+        return;
+    }
+
+    const controlsCollapsed =
+        dom.controlPanel &&
+        dom.controlPanel.classList.contains('collapsed');
+
+    const controlsRect = dom.controlsWrapper
+        ? dom.controlsWrapper.getBoundingClientRect()
+        : { width: 0, height: 0 };
+
+    const horizontalPadding = window.innerWidth < 700 ? 8 : 32;
+    const verticalPadding = window.innerHeight < 700 ? 8 : 32;
+    const layoutGap = 16;
+
+    const reservedWidth = controlsCollapsed
+        ? 0
+        : Math.ceil(controlsRect.width + layoutGap);
+
+    const reservedHeight = controlsCollapsed
+        ? Math.ceil(controlsRect.height + layoutGap)
+        : 0;
+
+    const availableWidth = Math.max(
+        1,
+        window.innerWidth - reservedWidth - horizontalPadding
+    );
+
+    const availableHeight = Math.max(
+        1,
+        window.innerHeight - reservedHeight - verticalPadding
+    );
+
+    const rawScale = Math.min(
+        availableWidth / naturalWidth,
+        availableHeight / naturalHeight
+    );
+
+    const scale = Math.max(0.01, Math.round(rawScale * 1000) / 1000);
+
+    const displayWidth = Math.round(naturalWidth * scale);
+    const displayHeight = Math.round(naturalHeight * scale);
+
+    dom.gameViewport.style.width = `${displayWidth}px`;
+    dom.gameViewport.style.height = `${displayHeight}px`;
+    dom.gameViewport.style.marginRight = '0';
+
+    dom.gameShell.style.transform = `scale(${scale})`;
+}
+
+export function scheduleGameResize() {
+    resizeGameDisplay();
+
+    requestAnimationFrame(() => {
+        resizeGameDisplay();
+    });
+
+    setTimeout(() => {
+        resizeGameDisplay();
+    }, 80);
+
+    setTimeout(() => {
+        resizeGameDisplay();
+    }, 250);
 }
 
 function addElement(x, y, w, h, type, side) {

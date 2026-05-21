@@ -1,8 +1,12 @@
 export const dom = {
+    gameViewport: document.getElementById('game-viewport'),
+    gameShell: document.getElementById('game-shell'),
     canvas: document.getElementById('field'),
     mainHud: document.getElementById('main-hud'),
     shiftFlash: document.getElementById('shift-flash'),
     controlsModal: document.getElementById('controls-modal'),
+    controlsConfigContent: document.getElementById('controls-config-content'),
+    controlsWrapper: document.querySelector('.controls-wrapper'),
     controlPanel: document.getElementById('control-panel'),
 
     scoreRedDisplay: document.getElementById('scoreRedDisplay'),
@@ -23,6 +27,7 @@ export const dom = {
     toggleControlsButton: document.getElementById('toggle-controls-btn'),
     showControlsButton: document.getElementById('show-controls-btn'),
     closeControlsButton: document.getElementById('close-controls-btn'),
+    resetControlsButton: document.getElementById('reset-controls-btn'),
 
     startButton: document.getElementById('start-btn'),
     resetButton: document.getElementById('reset-btn'),

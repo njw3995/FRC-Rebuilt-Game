@@ -1,8 +1,9 @@
 import { BOT_MODELS, OUTPOST_TOGGLE_KEYS, START_LABELS } from './constants.js';
 import { dom } from './dom.js';
 import { state } from './state.js';
-import { getBlueStartPos, getRedStartPos, resetBots, resetOutposts, spawnBalls } from './field.js';
+import { getBlueStartPos, getRedStartPos, resetBots, resetOutposts, scheduleGameResize, spawnBalls } from './field.js';
 import { refreshInputLabels } from './input.js';
+import { closeControlsConfig, openControlsConfig } from './controlsConfig.js';
 import { playSound } from './audio.js';
 import { updateHubUI } from './match.js';
 
@@ -171,20 +172,44 @@ export function initUiListeners() {
         });
     });
 
-    dom.toggleControlsButton.onclick = function toggleControls() {
-        dom.controlPanel.classList.toggle('collapsed');
-        this.innerText = dom.controlPanel.classList.contains('collapsed')
-            ? '☰ SHOW CONTROLS'
-            : '☰ HIDE CONTROLS';
-    };
+    function syncControlsLayoutState() {
+    const collapsed = dom.controlPanel.classList.contains('collapsed');
 
-    dom.showControlsButton.onclick = () => {
-        dom.controlsModal.classList.remove('hidden');
-    };
+    document.body.classList.toggle('controls-collapsed-layout', collapsed);
 
-    dom.closeControlsButton.onclick = () => {
-        dom.controlsModal.classList.add('hidden');
-    };
+    dom.toggleControlsButton.innerText = collapsed
+        ? '☰ SHOW CONTROLS'
+        : '☰ HIDE CONTROLS';
+
+    scheduleGameResize();
+}
+
+dom.toggleControlsButton.onclick = function toggleControls() {
+    dom.controlPanel.classList.toggle('collapsed');
+    syncControlsLayoutState();
+};
+
+syncControlsLayoutState();
+
+    if (window.innerWidth < 900) {
+        dom.controlPanel.classList.add('collapsed');
+        dom.toggleControlsButton.innerText = '☰ SHOW CONTROLS';
+        scheduleGameResize();
+    }
+
+    dom.showControlsButton.onclick = openControlsConfig;
+
+    dom.closeControlsButton.onclick = closeControlsConfig;
+
+    dom.controlsModal.addEventListener('click', event => {
+        if (event.target !== dom.controlsModal) return;
+        closeControlsConfig();
+    });
+
+    window.addEventListener('keydown', event => {
+        if (event.code !== 'Escape' || dom.controlsModal.classList.contains('hidden')) return;
+        closeControlsConfig();
+    });
 
     dom.p1Unstick.onclick = function unstickP1() {
         if (!state.matchRunning || state.p1UnstickUsed) return;
@@ -296,6 +321,7 @@ export function initUiListeners() {
         }
 
         refreshInputLabels();
+        scheduleGameResize();
     };
 
     dom.startButton.onclick = () => {

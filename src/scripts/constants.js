@@ -141,6 +141,48 @@ export const OUTPOST_TOGGLE_KEYS = {
     blue: 'AltRight'
 };
 
+export const CONTROLLER_DEADZONE = 0.15;
+
+export const CONTROLLER_LAYOUTS = {
+    p1: {
+        moveX: { kind: 'axis', index: 0, direction: 1 },
+        moveY: { kind: 'axis', index: 1, direction: 1 },
+        turnAxis: { kind: 'axis', index: 2, direction: 1 },
+        turnLeft: null,
+        turnRight: null,
+        action: [
+            { kind: 'button', index: 0 },
+            { kind: 'button', index: 5 },
+            { kind: 'button', index: 7 }
+        ],
+        toggle: [
+            { kind: 'button', index: 6 }
+        ],
+        outpost: [
+            { kind: 'button', index: 3 }
+        ]
+    },
+
+    p2: {
+        moveX: { kind: 'axis', index: 0, direction: 1 },
+        moveY: { kind: 'axis', index: 1, direction: 1 },
+        turnAxis: { kind: 'axis', index: 2, direction: 1 },
+        turnLeft: null,
+        turnRight: null,
+        action: [
+            { kind: 'button', index: 0 },
+            { kind: 'button', index: 5 },
+            { kind: 'button', index: 7 }
+        ],
+        toggle: [
+            { kind: 'button', index: 6 }
+        ],
+        outpost: [
+            { kind: 'button', index: 3 }
+        ]
+    }
+};
+
 export const OUTPOST_CONTROLLER_TOGGLE_BUTTON = 3;
 
 export const BLOCKED_KEYS = [

@@ -59,6 +59,9 @@ export const RED_SHOOT_LIMIT = (156.61 * S) + (BUMP_W / 2);
 export const BLUE_SHOOT_LIMIT = FIELD_W - (156.61 * S) - (BUMP_W / 2);
 
 export const STARTING_FUEL = 8;
+export const TRENCH_FUEL_LIMIT = 85;
+export const HUB_SCORE_GRACE_AFTER_SECONDS = 3;
+export const HUB_SCORE_EARLY_SECONDS = 2;
 
 export const TOWER_OFFSET = 144 * S;
 export const TOWER_DIM = 45 * S;
@@ -141,6 +144,11 @@ export const OUTPOST_TOGGLE_KEYS = {
     blue: 'AltRight'
 };
 
+export const MATCH_CONTROL_KEYS = {
+    startRestartCombo: ['BracketLeft', 'BracketRight', 'Backslash'],
+    stop: 'Enter'
+};
+
 export const CONTROLLER_DEADZONE = 0.15;
 
 export const CONTROLLER_LAYOUTS = {
@@ -205,7 +213,11 @@ export const BLOCKED_KEYS = [
     'Slash',
     'Numpad4',
     'Numpad6',
-    'ShiftRight'
+    'ShiftRight',
+    'BracketLeft',
+    'BracketRight',
+    'Backslash',
+    'Enter'
 ];
 
 export const FRAME_RATE = 60;

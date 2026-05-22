@@ -4,19 +4,21 @@ import {
     FIELD_W,
     FRAME_RATE,
     HUB_S,
+    MATCH_PHASES,
     OUTPOST_FEEDER_MAX_FUEL,
     OUTPOST_FEEDER_REFILL_RATE,
     OUTPOST_HUMAN_MAX_RATE,
     OUTPOST_HUMAN_MIN_RATE,
     OUTPOST_HUMAN_SHOOT_STOP_LEAD_TIME,
     OUTPOST_ROBOT_FEED_RATE,
+    TRENCH_FUEL_LIMIT,
     WALL_VISUAL
 } from './constants.js';
 import { ctx } from './dom.js';
 import { dom } from './dom.js';
 import { state } from './state.js';
 import { getInputs, assignGamepads, isControllerControlPressed } from './input.js';
-import { isHubActiveAt, tickMatch, updateHudBar } from './match.js';
+import { isHubActiveAt, isHubScoringAllowedAt, tickMatch, updateHudBar } from './match.js';
 import { circleRectCollision, rectRect, resolveBallCollision } from './math.js';
 import { toggleHumanPlayerShooting } from './ui.js';
 import {
@@ -46,55 +48,137 @@ function updateControllerOutpostToggles() {
     state.outpostControllerTogglePressed.p2 = p2Pressed;
 }
 
+function robotFitsInTrench(bot) {
+    return bot.inventory < TRENCH_FUEL_LIMIT;
+}
+
+function robotCanOccupy(bot, x, y) {
+    if (x < 0 || y < 0 || x + bot.model.w > FIELD_W || y + bot.model.h > FIELD_H) {
+        return false;
+    }
+
+    return !state.obstacles.some(o => {
+        if (o.type === 'trench' && robotFitsInTrench(bot)) return false;
+        return rectRect(x, y, bot.model.w, bot.model.h, o);
+    });
+}
+
+function tryMoveRobotForCollision(bot, dx, dy) {
+    const targetX = bot.x + dx;
+    const targetY = bot.y + dy;
+
+    if (robotCanOccupy(bot, targetX, targetY)) {
+        bot.x = targetX;
+        bot.y = targetY;
+        return true;
+    }
+
+    let moved = false;
+
+    if (dx !== 0 && robotCanOccupy(bot, targetX, bot.y)) {
+        bot.x = targetX;
+        moved = true;
+    } else if (dx !== 0) {
+        bot.vx = 0;
+    }
+
+    if (dy !== 0 && robotCanOccupy(bot, bot.x, targetY)) {
+        bot.y = targetY;
+        moved = true;
+    } else if (dy !== 0) {
+        bot.vy = 0;
+    }
+
+    return moved;
+}
+
 function resolveRobotCollision() {
     const botRed = state.botRed;
     const botBlue = state.botBlue;
-    const dx = (botRed.x + botRed.model.w / 2) - (botBlue.x + botBlue.model.w / 2);
-    let dy = (botRed.y + botRed.model.h / 2) - (botBlue.y + botBlue.model.h / 2);
-    const rad = botRed.model.w / 2 + botBlue.model.w / 2;
 
-    if (dx * dx + dy * dy >= rad * rad) return;
-
-    let dist = Math.sqrt(dx * dx + dy * dy);
-    let nx = dx / dist;
-    let ny = dy / dist;
-
-    if (dist === 0) {
-        nx = 1;
-        ny = 0;
-        dist = 1;
+    if (!rectRect(botRed.x, botRed.y, botRed.model.w, botRed.model.h, {
+        x: botBlue.x,
+        y: botBlue.y,
+        w: botBlue.model.w,
+        h: botBlue.model.h
+    })) {
+        return false;
     }
 
-    const overlap = rad - dist;
+    const redCx = botRed.x + botRed.model.w / 2;
+    const redCy = botRed.y + botRed.model.h / 2;
+    const blueCx = botBlue.x + botBlue.model.w / 2;
+    const blueCy = botBlue.y + botBlue.model.h / 2;
+    const dx = redCx - blueCx;
+    const dy = redCy - blueCy;
+    const overlapX = (botRed.model.w + botBlue.model.w) / 2 - Math.abs(dx);
+    const overlapY = (botRed.model.h + botBlue.model.h) / 2 - Math.abs(dy);
 
-    botRed.x += nx * overlap * 0.5;
-    botRed.y += ny * overlap * 0.5;
-    botBlue.x -= nx * overlap * 0.5;
-    botBlue.y -= ny * overlap * 0.5;
+    if (overlapX <= 0 || overlapY <= 0) {
+        return false;
+    }
 
-    botRed.x = Math.max(0, Math.min(FIELD_W - botRed.model.w, botRed.x));
-    botRed.y = Math.max(0, Math.min(FIELD_H - botRed.model.h, botRed.y));
-    botBlue.x = Math.max(0, Math.min(FIELD_W - botBlue.model.w, botBlue.x));
-    botBlue.y = Math.max(0, Math.min(FIELD_H - botBlue.model.h, botBlue.y));
+    const sx = dx >= 0 ? 1 : -1;
+    const sy = dy >= 0 ? 1 : -1;
+    const primaryAxis = overlapX <= overlapY ? 'x' : 'y';
+    const secondaryAxis = primaryAxis === 'x' ? 'y' : 'x';
 
-    state.obstacles.forEach(o => {
-        if (o.type === 'trench') return;
+    function resolveAlongAxis(axis) {
+        const amount = (axis === 'x' ? overlapX : overlapY) + 0.35;
+        const redDx = axis === 'x' ? sx * amount : 0;
+        const redDy = axis === 'y' ? sy * amount : 0;
+        const blueDx = -redDx;
+        const blueDy = -redDy;
+        const redHalfDx = redDx * 0.5;
+        const redHalfDy = redDy * 0.5;
+        const blueHalfDx = blueDx * 0.5;
+        const blueHalfDy = blueDy * 0.5;
+        const redCanMoveHalf = robotCanOccupy(botRed, botRed.x + redHalfDx, botRed.y + redHalfDy);
+        const blueCanMoveHalf = robotCanOccupy(botBlue, botBlue.x + blueHalfDx, botBlue.y + blueHalfDy);
 
-        if (rectRect(botRed.x, botRed.y, botRed.model.w, botRed.model.h, o)) {
-            botRed.x = nx > 0 ? o.x + o.w : o.x - botRed.model.w;
-            botRed.vx = 0;
+        let moved = false;
+
+        if (redCanMoveHalf && blueCanMoveHalf) {
+            botRed.x += redHalfDx;
+            botRed.y += redHalfDy;
+            botBlue.x += blueHalfDx;
+            botBlue.y += blueHalfDy;
+            moved = true;
+        } else if (robotCanOccupy(botRed, botRed.x + redDx, botRed.y + redDy)) {
+            botRed.x += redDx;
+            botRed.y += redDy;
+            moved = true;
+        } else if (robotCanOccupy(botBlue, botBlue.x + blueDx, botBlue.y + blueDy)) {
+            botBlue.x += blueDx;
+            botBlue.y += blueDy;
+            moved = true;
         }
 
-        if (rectRect(botBlue.x, botBlue.y, botBlue.model.w, botBlue.model.h, o)) {
-            botBlue.x = nx > 0 ? o.x - botBlue.model.w : o.x + o.w;
-            botBlue.vx = 0;
-        }
-    });
+        if (!moved) return false;
 
-    botRed.vx += nx * 0.5;
-    botRed.vy += ny * 0.5;
-    botBlue.vx -= nx * 0.5;
-    botBlue.vy -= ny * 0.5;
+        if (axis === 'x') {
+            botRed.vx = Math.max(0, botRed.vx * sx) * sx;
+            botBlue.vx = Math.max(0, botBlue.vx * -sx) * -sx;
+        } else {
+            botRed.vy = Math.max(0, botRed.vy * sy) * sy;
+            botBlue.vy = Math.max(0, botBlue.vy * -sy) * -sy;
+        }
+
+        botRed.vx *= 0.65;
+        botRed.vy *= 0.65;
+        botBlue.vx *= 0.65;
+        botBlue.vy *= 0.65;
+        return true;
+    }
+
+    if (resolveAlongAxis(primaryAxis)) return true;
+    return resolveAlongAxis(secondaryAxis);
+}
+
+function resolveRobotCollisions() {
+    for (let i = 0; i < 8; i++) {
+        if (!resolveRobotCollision()) break;
+    }
 }
 
 function updateScoringBalls(now) {
@@ -219,9 +303,7 @@ function feedRobotFromOutpost(bot, side) {
 }
 
 function updateOutposts(now) {
-    const activeHumanOutpostSides = state.sameTeamMode || !state.p2Enabled ? ['red'] : ['red', 'blue'];
-
-    for (const side of activeHumanOutpostSides) {
+    for (const side of ['red', 'blue']) {
         const outpost = state.outposts[side];
         if (!outpost) continue;
 
@@ -315,8 +397,8 @@ function updateBalls(now) {
         });
 
         if (!onBump && b.wasOnBump) {
-            b.vx *= 0.15;
-            b.vy *= 0.15;
+            b.vx *= 0.25;
+            b.vy *= 0.25;
         }
 
         b.wasOnBump = onBump;
@@ -328,13 +410,13 @@ function updateBalls(now) {
             const friction = b.rollTimer && now < b.rollTimer
                 ? b.frictionMod
                 : onBump
-                    ? 0.96
-                    : 0.91;
+                    ? 0.97
+                    : 0.94;
 
             b.vx *= friction;
             b.vy *= friction;
 
-            if (Math.hypot(b.vx, b.vy) < 0.15) {
+            if (Math.hypot(b.vx, b.vy) < 0.10) {
                 b.vx = 0;
                 b.vy = 0;
                 b.isStatic = true;
@@ -422,6 +504,35 @@ function updateBalls(now) {
     });
 }
 
+
+function getCurrentPhaseTimeLeft() {
+    const phase = MATCH_PHASES[state.currentPhaseIdx];
+    if (!phase || !state.matchRunning) return Infinity;
+    return Math.max(0, phase.end - state.matchElapsed);
+}
+
+function drawHubActiveText(z, color, active) {
+    if (!state.matchRunning) return;
+
+    const centerX = z.x + z.w / 2;
+    const centerY = z.y + z.h / 2;
+    const blink = active && getCurrentPhaseTimeLeft() <= 3;
+
+    if (active && blink && Math.floor(Date.now() / 220) % 2 === 0) {
+        return;
+    }
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = active ? '900 13px Segoe UI' : '900 11px Segoe UI';
+    ctx.fillStyle = active ? `rgb(${color})` : `rgba(${color}, 0.7)`;
+    ctx.shadowColor = active ? `rgba(${color}, 0.9)` : 'transparent';
+    ctx.shadowBlur = active ? 10 : 0;
+    ctx.fillText(active ? 'ACTIVE' : 'INACTIVE', centerX, centerY + 4);
+    ctx.restore();
+}
+
 function updateProjectiles(now) {
     state.projectiles = state.projectiles.filter(p => {
         p.x += p.vx;
@@ -481,11 +592,9 @@ function updateProjectiles(now) {
 
                 scored = true;
 
-                const isHubActive = p.owner === 'red'
-                    ? state.hubRedActive
-                    : state.hubBlueActive;
+                const scoringAllowed = isHubScoringAllowedAt(p.owner, state.matchElapsed);
 
-                if (state.matchRunning && isHubActive) {
+                if (state.matchRunning && scoringAllowed) {
                     if (p.owner === 'red') {
                         state.scoreRed++;
                         dom.scoreRedDisplay.innerText = state.scoreRed;
@@ -554,7 +663,7 @@ export function update() {
             state.zones
         );
 
-        resolveRobotCollision();
+        resolveRobotCollisions();
     }
 
     updateOutposts(now);
@@ -607,14 +716,8 @@ export function draw() {
 
             ctx.fill();
 
-            if (state.matchRunning && !active) {
-                ctx.fillStyle = `rgba(${c}, 0.7)`;
-                ctx.font = 'bold 12px Segoe UI';
-                ctx.textAlign = 'center';
-                ctx.fillText('INACTIVE', z.x + z.w / 2, z.y + z.h / 2 + 5);
-            }
-
             ctx.globalAlpha = 1.0;
+            drawHubActiveText(z, c, active);
         } else if (z.type === 'barrier' || z.type === 'towerWall') {
             ctx.fillStyle = `rgb(${c})`;
             ctx.fillRect(z.x, z.y, z.w, z.h);
@@ -624,6 +727,15 @@ export function draw() {
             ctx.strokeStyle = `rgba(${c}, 0.5)`;
             ctx.lineWidth = 2;
             ctx.strokeRect(z.x, z.y, z.w, z.h);
+
+            ctx.save();
+            ctx.globalAlpha = 0.38;
+            ctx.fillStyle = '#fff';
+            ctx.font = '900 18px Segoe UI';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`<${TRENCH_FUEL_LIMIT}`, z.x + z.w / 2, z.y + z.h / 2);
+            ctx.restore();
         } else if (z.type === 'tower') {
             ctx.fillStyle = '#222';
             ctx.fillRect(z.x, z.y, z.w, z.h);

@@ -329,14 +329,14 @@ export function createRobots() {
     state.botBlue = new Robot(FIELD_W - 115, FIELD_H / 2 - 14, 'double turret', Math.PI);
 }
 
-export function getRedStartPos() {
+function getRedSideStartPosForIndex(startIdx) {
     let x = 156.61 * S - 45;
     let y = FIELD_H / 2 - 17.5;
 
-    if (state.p1StartIdx === 1) {
+    if (startIdx === 1) {
         x = 156.61 * S - 20;
         y = getTopTrenchCenterY() - 17.5;
-    } else if (state.p1StartIdx === 2) {
+    } else if (startIdx === 2) {
         x = 156.61 * S - 20;
         y = getBottomTrenchCenterY() - 17.5;
     }
@@ -344,22 +344,23 @@ export function getRedStartPos() {
     return { x, y, a: 0 };
 }
 
+export function getRedStartPos() {
+    return getRedSideStartPosForIndex(state.p1StartIdx);
+}
+
 export function getBlueStartPos() {
     if (state.sameTeamMode) {
-        let x = 156.61 * S - 45;
-        let y = FIELD_H / 2 + 20;
+        if (state.p1StartIdx === state.p2StartIdx) {
+            const p1Start = getRedStartPos();
 
-        if (state.p2StartIdx === 1) {
-            x = 156.61 * S - 20;
-            y = getTopTrenchCenterY() + 20;
+            return {
+                x: Math.max(0, p1Start.x - 45),
+                y: p1Start.y,
+                a: p1Start.a
+            };
         }
 
-        if (state.p2StartIdx === 2) {
-            x = 156.61 * S - 20;
-            y = getBottomTrenchCenterY() + 20;
-        }
-
-        return { x, y, a: 0 };
+        return getRedSideStartPosForIndex(state.p2StartIdx);
     }
 
     let x = FIELD_W - 156.61 * S + 10;

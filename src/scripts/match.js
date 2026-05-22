@@ -1,4 +1,9 @@
-import { MATCH_PHASES, SHIFT_STATES } from './constants.js';
+import {
+    HUB_SCORE_EARLY_SECONDS,
+    HUB_SCORE_GRACE_AFTER_SECONDS,
+    MATCH_PHASES,
+    SHIFT_STATES
+} from './constants.js';
 import { dom } from './dom.js';
 import { playSound } from './audio.js';
 import { state } from './state.js';
@@ -18,7 +23,7 @@ function getDisplayTime(elapsed) {
 }
 
 
-export function isHubActiveAt(side, elapsed) {
+function getHubActiveStateAt(side, elapsed) {
     if (elapsed < 0 || elapsed >= 163) return false;
 
     const phaseIdx = MATCH_PHASES.findIndex(
@@ -47,6 +52,16 @@ function triggerShiftFlash() {
 function getPulseColor(r, g, b) {
     const p = (Math.sin(Date.now() / 250) + 1) / 2;
     return `rgb(${Math.round(r + (255 - r) * p)}, ${Math.round(g + (255 - g) * p)}, ${Math.round(b + (255 - b) * p)})`;
+}
+
+export function isHubActiveAt(side, elapsed) {
+    return getHubActiveStateAt(side, elapsed);
+}
+
+export function isHubScoringAllowedAt(side, elapsed) {
+    return getHubActiveStateAt(side, elapsed) ||
+        getHubActiveStateAt(side, elapsed - HUB_SCORE_GRACE_AFTER_SECONDS) ||
+        getHubActiveStateAt(side, elapsed + HUB_SCORE_EARLY_SECONDS);
 }
 
 export function updateHubUI(redActive, blueActive) {

@@ -55,5 +55,7 @@ export const state = {
     gamepadAssignments: {
         p1: null,
         p2: null
-    }
+    },
+
+    controlsCollapsed: false
 };

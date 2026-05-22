@@ -12,10 +12,11 @@ import { initControlsConfig } from './controlsConfig.js';
 import { initInputListeners, refreshInputLabels } from './input.js';
 import { update, draw } from './game.js';
 import { updateHubUI } from './match.js';
-import { initUiListeners } from './ui.js';
+import { initUiListeners, loadSavedGameSettings } from './ui.js';
 
 configureCanvas();
 createRobots();
+loadSavedGameSettings();
 initField();
 spawnBalls();
 resetOutposts();

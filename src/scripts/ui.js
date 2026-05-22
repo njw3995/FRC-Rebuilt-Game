@@ -1,4 +1,4 @@
-import { BOT_MODELS, OUTPOST_TOGGLE_KEYS, START_LABELS } from './constants.js';
+import { BOT_MODELS, MATCH_CONTROL_KEYS, OUTPOST_TOGGLE_KEYS, START_LABELS } from './constants.js';
 import { dom } from './dom.js';
 import { state } from './state.js';
 import { getBlueStartPos, getRedStartPos, resetBots, resetOutposts, scheduleGameResize, spawnBalls } from './field.js';
@@ -6,6 +6,105 @@ import { refreshInputLabels } from './input.js';
 import { closeControlsConfig, openControlsConfig } from './controlsConfig.js';
 import { playSound } from './audio.js';
 import { updateHubUI } from './match.js';
+
+const GAME_SETTINGS_STORAGE_KEY = 'frc-2026-game-settings-v1';
+const pressedMatchKeys = new Set();
+let matchStartComboConsumed = false;
+
+function getSavedGameSettings() {
+    try {
+        return JSON.parse(localStorage.getItem(GAME_SETTINGS_STORAGE_KEY) || 'null');
+    } catch {
+        return null;
+    }
+}
+
+function normalizeStartIdx(value) {
+    return Number.isInteger(value) && value >= 0 && value < START_LABELS.length
+        ? value
+        : 0;
+}
+
+function isInputMode(value) {
+    return value === 'keyboard' || value === 'controller';
+}
+
+function setRobotModelIfValid(bot, modelName) {
+    if (!bot || !BOT_MODELS[modelName]) return;
+    bot.setModel(modelName);
+}
+
+export function loadSavedGameSettings() {
+    const saved = getSavedGameSettings();
+
+    if (!saved) {
+        state.controlsCollapsed = window.innerWidth < 900;
+        return;
+    }
+
+    state.sameTeamMode = Boolean(saved.sameTeamMode);
+    state.p2Enabled = saved.p2Enabled !== undefined ? Boolean(saved.p2Enabled) : state.p2Enabled;
+
+    if (isInputMode(saved.p1Input)) {
+        state.p1Input = saved.p1Input;
+    }
+
+    if (isInputMode(saved.p2Input)) {
+        state.p2Input = saved.p2Input;
+    }
+
+    state.p1StartIdx = normalizeStartIdx(saved.p1StartIdx);
+    state.p2StartIdx = normalizeStartIdx(saved.p2StartIdx);
+
+    if (saved.humanShootingEnabled) {
+        state.humanShootingEnabled.red = saved.humanShootingEnabled.red !== false;
+        state.humanShootingEnabled.blue = saved.humanShootingEnabled.blue !== false;
+    }
+
+    state.controlsCollapsed = typeof saved.controlsCollapsed === 'boolean'
+        ? saved.controlsCollapsed
+        : window.innerWidth < 900;
+
+    setRobotModelIfValid(state.botRed, saved.botRedModel);
+    setRobotModelIfValid(state.botBlue, saved.botBlueModel);
+}
+
+function saveGameSettings() {
+    try {
+        localStorage.setItem(GAME_SETTINGS_STORAGE_KEY, JSON.stringify({
+            sameTeamMode: state.sameTeamMode,
+            p2Enabled: state.p2Enabled,
+            p1Input: state.p1Input,
+            p2Input: state.p2Input,
+            p1StartIdx: state.p1StartIdx,
+            p2StartIdx: state.p2StartIdx,
+            botRedModel: state.botRed?.name,
+            botBlueModel: state.botBlue?.name,
+            humanShootingEnabled: state.humanShootingEnabled,
+            controlsCollapsed: state.controlsCollapsed
+        }));
+    } catch {
+        // Ignore storage failures so the game still runs if storage is unavailable.
+    }
+}
+
+function controlsConfigOpen() {
+    return dom.controlsModal && !dom.controlsModal.classList.contains('hidden');
+}
+
+function matchStartComboPressed() {
+    return MATCH_CONTROL_KEYS.startRestartCombo.every(code => pressedMatchKeys.has(code));
+}
+
+function clearMatchControlKeys() {
+    pressedMatchKeys.clear();
+    matchStartComboConsumed = false;
+}
+
+function clearMovingMatchObjects() {
+    state.projectiles = [];
+    state.scoringBalls = [];
+}
 
 function setScoreDisplays() {
     dom.scoreRedDisplay.innerText = state.scoreRed;
@@ -25,6 +124,7 @@ function clearCountdownInterval() {
 }
 
 function resetMatchCoreState() {
+    clearMovingMatchObjects();
     state.matchRunning = false;
     state.startCountdown = 0;
     state.endCooldown = 0;
@@ -38,6 +138,7 @@ function disableUnstickButtons() {
 }
 
 function stopMatch() {
+    clearMatchControlKeys();
     resetMatchCoreState();
     state.p1FreezeUntil = 0;
     state.p2FreezeUntil = 0;
@@ -54,16 +155,19 @@ function stopMatch() {
 }
 
 function startMatchCountdown() {
-    state.endCooldown = 0;
+    clearMatchControlKeys();
+    resetMatchCoreState();
+    state.p1FreezeUntil = 0;
+    state.p2FreezeUntil = 0;
     state.scoreRed = 0;
     state.scoreBlue = 0;
     setScoreDisplays();
-
 
     state.autoScoreRed = 0;
     state.autoScoreBlue = 0;
     state.autoPhaseEnded = false;
     state.currentPhaseIdx = -1;
+    updateHubUI(false, false);
 
     spawnBalls();
     resetOutposts();
@@ -111,7 +215,6 @@ function resetField() {
     state.scoreBlue = 0;
     setScoreDisplays();
 
-
     dom.matchClock.innerText = '2:20';
     dom.matchClock.className = 'stopped';
     dom.phaseLabel.innerText = 'MATCH NOT STARTED';
@@ -125,7 +228,6 @@ function resetField() {
     resetOutposts();
     resetBots();
 }
-
 
 export function refreshHumanPlayerToggleLabels() {
     dom.redHumanToggle.innerText = state.humanShootingEnabled.red
@@ -143,6 +245,7 @@ export function refreshHumanPlayerToggleLabels() {
 export function toggleHumanPlayerShooting(side) {
     state.humanShootingEnabled[side] = !state.humanShootingEnabled[side];
     refreshHumanPlayerToggleLabels();
+    saveGameSettings();
 }
 
 function cycleBotModel(bot, button, labelPrefix) {
@@ -165,6 +268,42 @@ function setP2ColorClass(className) {
     }
 }
 
+function syncControlsLayoutState({ save = false } = {}) {
+    state.controlsCollapsed = dom.controlPanel.classList.contains('collapsed');
+
+    document.body.classList.toggle('controls-collapsed-layout', state.controlsCollapsed);
+
+    dom.toggleControlsButton.innerText = state.controlsCollapsed
+        ? '☰ SHOW CONTROLS'
+        : '☰ HIDE CONTROLS';
+
+    if (save) {
+        saveGameSettings();
+    }
+
+    scheduleGameResize();
+}
+
+function syncGameSettingsUi() {
+    dom.teamModeToggle.innerText = `TEAM: ${state.sameTeamMode ? 'CO-OP (RED)' : 'SEPARATE'}`;
+    setP2ColorClass(state.sameTeamMode ? 'red-team' : 'blue-team');
+
+    dom.p1StartToggle.innerText = `P1 START: ${START_LABELS[state.p1StartIdx]}`;
+    dom.p2StartToggle.innerText = `P2 START: ${START_LABELS[state.p2StartIdx]}`;
+
+    dom.botRedToggle.innerText = `PLAYER 1: ${state.botRed.name}`;
+    dom.botBlueToggle.innerText = `PLAYER 2: ${state.botBlue.name}`;
+
+    dom.p2Toggle.innerText = state.p2Enabled ? 'PLAYER 2: ON' : 'PLAYER 2: OFF';
+    dom.p2Toggle.classList.toggle('disabled', !state.p2Enabled);
+
+    dom.controlPanel.classList.toggle('collapsed', state.controlsCollapsed);
+    syncControlsLayoutState();
+
+    refreshHumanPlayerToggleLabels();
+    refreshInputLabels();
+}
+
 export function initUiListeners() {
     document.querySelectorAll('button').forEach(btn => {
         btn.addEventListener('click', function blurButton() {
@@ -172,30 +311,12 @@ export function initUiListeners() {
         });
     });
 
-    function syncControlsLayoutState() {
-    const collapsed = dom.controlPanel.classList.contains('collapsed');
+    dom.toggleControlsButton.onclick = function toggleControls() {
+        dom.controlPanel.classList.toggle('collapsed');
+        syncControlsLayoutState({ save: true });
+    };
 
-    document.body.classList.toggle('controls-collapsed-layout', collapsed);
-
-    dom.toggleControlsButton.innerText = collapsed
-        ? '☰ SHOW CONTROLS'
-        : '☰ HIDE CONTROLS';
-
-    scheduleGameResize();
-}
-
-dom.toggleControlsButton.onclick = function toggleControls() {
-    dom.controlPanel.classList.toggle('collapsed');
-    syncControlsLayoutState();
-};
-
-syncControlsLayoutState();
-
-    if (window.innerWidth < 900) {
-        dom.controlPanel.classList.add('collapsed');
-        dom.toggleControlsButton.innerText = '☰ SHOW CONTROLS';
-        scheduleGameResize();
-    }
+    syncGameSettingsUi();
 
     dom.showControlsButton.onclick = openControlsConfig;
 
@@ -249,6 +370,7 @@ syncControlsLayoutState();
         state.p1StartIdx = (state.p1StartIdx + 1) % 3;
         this.innerText = `P1 START: ${START_LABELS[state.p1StartIdx]}`;
         resetBots();
+        saveGameSettings();
     };
 
     dom.p2StartToggle.onclick = function toggleP2Start() {
@@ -257,6 +379,7 @@ syncControlsLayoutState();
         state.p2StartIdx = (state.p2StartIdx + 1) % 3;
         this.innerText = `P2 START: ${START_LABELS[state.p2StartIdx]}`;
         resetBots();
+        saveGameSettings();
     };
 
     dom.redHumanToggle.onclick = () => toggleHumanPlayerShooting('red');
@@ -264,7 +387,7 @@ syncControlsLayoutState();
     dom.blueHumanToggle.onclick = () => toggleHumanPlayerShooting('blue');
 
     window.addEventListener('keydown', event => {
-        if (event.repeat) return;
+        if (event.repeat || controlsConfigOpen()) return;
 
         if (event.code === OUTPOST_TOGGLE_KEYS.red) {
             event.preventDefault();
@@ -277,15 +400,59 @@ syncControlsLayoutState();
         }
     }, { passive: false });
 
+    window.addEventListener('keydown', event => {
+        if (controlsConfigOpen()) return;
+
+        if (event.code === MATCH_CONTROL_KEYS.stop) {
+            event.preventDefault();
+            clearMatchControlKeys();
+
+            if (state.matchRunning || state.startCountdown > 0) {
+                stopMatch();
+            }
+
+            return;
+        }
+
+        if (!MATCH_CONTROL_KEYS.startRestartCombo.includes(event.code)) {
+            return;
+        }
+
+        event.preventDefault();
+        pressedMatchKeys.add(event.code);
+
+        if (!matchStartComboPressed() || matchStartComboConsumed) {
+            return;
+        }
+
+        matchStartComboConsumed = true;
+        startMatchCountdown();
+    }, { passive: false });
+
+    window.addEventListener('keyup', event => {
+        if (!MATCH_CONTROL_KEYS.startRestartCombo.includes(event.code)) {
+            return;
+        }
+
+        event.preventDefault();
+        pressedMatchKeys.delete(event.code);
+
+        if (!matchStartComboPressed()) {
+            matchStartComboConsumed = false;
+        }
+    }, { passive: false });
+
+    window.addEventListener('blur', clearMatchControlKeys);
+
     refreshHumanPlayerToggleLabels();
 
     dom.teamModeToggle.onclick = function toggleTeamMode() {
         if (state.matchRunning || state.startCountdown > 0) return;
 
         state.sameTeamMode = !state.sameTeamMode;
-        this.innerText = `TEAM: ${state.sameTeamMode ? 'CO-OP (RED)' : 'SEPARATE'}`;
-        setP2ColorClass(state.sameTeamMode ? 'red-team' : 'blue-team');
         resetField();
+        syncGameSettingsUi();
+        saveGameSettings();
     };
 
     dom.p1InputToggle.onclick = function toggleP1Input() {
@@ -293,6 +460,7 @@ syncControlsLayoutState();
 
         state.p1Input = state.p1Input === 'keyboard' ? 'controller' : 'keyboard';
         refreshInputLabels();
+        saveGameSettings();
     };
 
     dom.p2InputToggle.onclick = function toggleP2Input() {
@@ -300,6 +468,7 @@ syncControlsLayoutState();
 
         state.p2Input = state.p2Input === 'keyboard' ? 'controller' : 'keyboard';
         refreshInputLabels();
+        saveGameSettings();
     };
 
     dom.p2Toggle.onclick = () => {
@@ -321,6 +490,7 @@ syncControlsLayoutState();
         }
 
         refreshInputLabels();
+        saveGameSettings();
         scheduleGameResize();
     };
 
@@ -336,11 +506,13 @@ syncControlsLayoutState();
     dom.botRedToggle.onclick = () => {
         if (state.matchRunning || state.startCountdown > 0) return;
         cycleBotModel(state.botRed, dom.botRedToggle, 'PLAYER 1');
+        saveGameSettings();
     };
 
     dom.botBlueToggle.onclick = () => {
         if (state.matchRunning || state.startCountdown > 0) return;
         cycleBotModel(state.botBlue, dom.botBlueToggle, 'PLAYER 2');
+        saveGameSettings();
     };
 
     dom.resetButton.onclick = resetField;

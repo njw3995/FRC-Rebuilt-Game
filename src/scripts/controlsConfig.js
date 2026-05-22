@@ -2,6 +2,7 @@ import {
     BLOCKED_KEYS,
     CONTROLLER_LAYOUTS,
     KEYBOARD_LAYOUTS,
+    MATCH_CONTROL_KEYS,
     OUTPOST_TOGGLE_KEYS
 } from './constants.js';
 import { dom } from './dom.js';
@@ -10,6 +11,7 @@ const STORAGE_KEY = 'frc-2026-control-bindings-v2';
 
 const DEFAULT_KEYBOARD_LAYOUTS = JSON.parse(JSON.stringify(KEYBOARD_LAYOUTS));
 const DEFAULT_OUTPOST_TOGGLE_KEYS = JSON.parse(JSON.stringify(OUTPOST_TOGGLE_KEYS));
+const DEFAULT_MATCH_CONTROL_KEYS = JSON.parse(JSON.stringify(MATCH_CONTROL_KEYS));
 const DEFAULT_CONTROLLER_LAYOUTS = JSON.parse(JSON.stringify(CONTROLLER_LAYOUTS));
 
 let captureBindingId = null;
@@ -203,6 +205,41 @@ const CONTROL_BINDINGS = [
         side: 'blue',
         description: 'Toggles the blue outpost between SHOOT and FEED. In co-op mode this toggles the red outpost.'
     },
+    {
+        id: 'match.startRestartCombo.0',
+        group: 'Match Keyboard',
+        label: 'Start / Restart Combo Key 1',
+        type: 'match',
+        action: 'startRestartCombo',
+        slot: 0,
+        description: 'One of the three keys that must be held with the other combo keys to start or restart the match.'
+    },
+    {
+        id: 'match.startRestartCombo.1',
+        group: 'Match Keyboard',
+        label: 'Start / Restart Combo Key 2',
+        type: 'match',
+        action: 'startRestartCombo',
+        slot: 1,
+        description: 'One of the three keys that must be held with the other combo keys to start or restart the match.'
+    },
+    {
+        id: 'match.startRestartCombo.2',
+        group: 'Match Keyboard',
+        label: 'Start / Restart Combo Key 3',
+        type: 'match',
+        action: 'startRestartCombo',
+        slot: 2,
+        description: 'One of the three keys that must be held with the other combo keys to start or restart the match.'
+    },
+    {
+        id: 'match.stop',
+        group: 'Match Keyboard',
+        label: 'Stop Match',
+        type: 'match',
+        action: 'stop',
+        description: 'Stops the current match or cancels the start countdown.'
+    },
     ...createControllerBindings('p1', 'Controller Player 1'),
     ...createControllerBindings('p2', 'Controller Player 2')
 ];
@@ -353,6 +390,16 @@ function cloneOutpostKeys(source) {
     if (source.blue) OUTPOST_TOGGLE_KEYS.blue = source.blue;
 }
 
+function cloneMatchControlKeys(source) {
+    if (Array.isArray(source.startRestartCombo)) {
+        MATCH_CONTROL_KEYS.startRestartCombo = [...source.startRestartCombo];
+    }
+
+    if (source.stop) {
+        MATCH_CONTROL_KEYS.stop = source.stop;
+    }
+}
+
 function cloneControllerLayouts(source) {
     for (const playerId of Object.keys(CONTROLLER_LAYOUTS)) {
         if (!source[playerId]) continue;
@@ -403,6 +450,16 @@ function getBindingCode(binding) {
         return OUTPOST_TOGGLE_KEYS[binding.side];
     }
 
+    if (binding.type === 'match') {
+        if (binding.action === 'startRestartCombo') {
+            return MATCH_CONTROL_KEYS.startRestartCombo[binding.slot];
+        }
+
+        if (binding.action === 'stop') {
+            return MATCH_CONTROL_KEYS.stop;
+        }
+    }
+
     return null;
 }
 
@@ -411,6 +468,12 @@ function setBindingCode(binding, code) {
         KEYBOARD_LAYOUTS[binding.player][binding.action] = [code];
     } else if (binding.type === 'outpost') {
         OUTPOST_TOGGLE_KEYS[binding.side] = code;
+    } else if (binding.type === 'match') {
+        if (binding.action === 'startRestartCombo') {
+            MATCH_CONTROL_KEYS.startRestartCombo[binding.slot] = code;
+        } else if (binding.action === 'stop') {
+            MATCH_CONTROL_KEYS.stop = code;
+        }
     }
 
     saveControlBindings();
@@ -430,6 +493,7 @@ function saveControlBindings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
         keyboardLayouts: KEYBOARD_LAYOUTS,
         outpostToggleKeys: OUTPOST_TOGGLE_KEYS,
+        matchControlKeys: MATCH_CONTROL_KEYS,
         controllerLayouts: CONTROLLER_LAYOUTS
     }));
 }
@@ -446,6 +510,10 @@ function applySavedControlBindings() {
         cloneOutpostKeys(saved.outpostToggleKeys);
     }
 
+    if (saved.matchControlKeys) {
+        cloneMatchControlKeys(saved.matchControlKeys);
+    }
+
     if (saved.controllerLayouts) {
         cloneControllerLayouts(saved.controllerLayouts);
     }
@@ -455,6 +523,7 @@ function resetControlBindings() {
     localStorage.removeItem(STORAGE_KEY);
     cloneKeyboardLayouts(DEFAULT_KEYBOARD_LAYOUTS);
     cloneOutpostKeys(DEFAULT_OUTPOST_TOGGLE_KEYS);
+    cloneMatchControlKeys(DEFAULT_MATCH_CONTROL_KEYS);
     cloneControllerLayouts(DEFAULT_CONTROLLER_LAYOUTS);
     refreshBlockedKeys();
     renderControlsConfig();
@@ -471,6 +540,8 @@ function refreshBlockedKeys() {
 
     blocked.add(OUTPOST_TOGGLE_KEYS.red);
     blocked.add(OUTPOST_TOGGLE_KEYS.blue);
+    MATCH_CONTROL_KEYS.startRestartCombo.forEach(code => blocked.add(code));
+    blocked.add(MATCH_CONTROL_KEYS.stop);
 
     BLOCKED_KEYS.length = 0;
     blocked.forEach(code => BLOCKED_KEYS.push(code));
@@ -497,6 +568,7 @@ function formatKeyCode(code) {
         BracketLeft: '[',
         BracketRight: ']',
         Backslash: '\\',
+        Enter: 'Enter',
         Minus: '-',
         Equal: '=',
         Backquote: '`'
@@ -534,7 +606,8 @@ function getConflictingBindingIds(code, currentId) {
     return CONTROL_BINDINGS
         .filter(binding => {
             if (binding.id === currentId) return false;
-            return (binding.type === 'keyboard' || binding.type === 'outpost') && getBindingCode(binding) === code;
+            return ['keyboard', 'outpost', 'match'].includes(binding.type) &&
+                getBindingCode(binding) === code;
         })
         .map(binding => binding.id);
 }

@@ -4,7 +4,8 @@ import {
     FIELD_H,
     FIELD_W,
     HUB_S,
-    RED_SHOOT_LIMIT
+    RED_SHOOT_LIMIT,
+    TRENCH_FUEL_LIMIT
 } from './constants.js';
 import { dom } from './dom.js';
 import { state } from './state.js';
@@ -169,7 +170,7 @@ export class Robot {
         let blockY = false;
 
         obstacles.forEach(o => {
-            if (o.type === 'trench' && this.inventory < 85) return;
+            if (o.type === 'trench' && this.inventory < TRENCH_FUEL_LIMIT) return;
             if (rectRect(nx, this.y, this.model.w, this.model.h, o)) blockX = true;
             if (rectRect(this.x, ny, this.model.w, this.model.h, o)) blockY = true;
         });
@@ -281,6 +282,125 @@ export class Robot {
         getHeldElement(alliance).innerText = this.inventory;
     }
 
+    getAimedShotAngle(alliance) {
+        const rcx = this.x + this.model.w / 2;
+        const rcy = this.y + this.model.h / 2;
+
+        const isShootingZone = alliance === 'red'
+            ? rcx < RED_SHOOT_LIMIT
+            : rcx > BLUE_SHOOT_LIMIT;
+
+        if (isShootingZone) {
+            const hub = state.zones.find(z => z.type === 'hub' && z.side === alliance);
+
+            if (hub) {
+                return Math.atan2(
+                    (hub.y + hub.h / 2) - rcy,
+                    (hub.x + hub.w / 2) - rcx
+                );
+            }
+        }
+
+        const targetX = alliance === 'red' ? 40 : FIELD_W - 40;
+        const targetY = rcy < FIELD_H / 2 ? 40 : FIELD_H - 40;
+
+        return Math.atan2(targetY - rcy, targetX - rcx);
+    }
+
+    drawAttachedShooterTriangle(ctx, localAngle, offset = 0) {
+        const ux = Math.cos(localAngle);
+        const uy = Math.sin(localAngle);
+        const px = -uy;
+        const py = ux;
+        const halfW = this.model.w / 2;
+        const halfH = this.model.h / 2;
+        const safeUx = Math.max(0.001, Math.abs(ux));
+        const safeUy = Math.max(0.001, Math.abs(uy));
+        const edgeDistance = Math.min(halfW / safeUx, halfH / safeUy);
+        const tipDistance = edgeDistance + 6;
+        const baseDistance = edgeDistance - 3;
+        const halfBase = 4;
+        const tipX = ux * tipDistance + px * offset;
+        const tipY = uy * tipDistance + py * offset;
+        const baseX = ux * baseDistance + px * offset;
+        const baseY = uy * baseDistance + py * offset;
+
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(baseX + px * halfBase, baseY + py * halfBase);
+        ctx.lineTo(baseX - px * halfBase, baseY - py * halfBase);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    drawShooterIndicators(ctx, alliance) {
+        if (this.name === 'Blitz') {
+            this.drawAttachedShooterTriangle(ctx, 0);
+            return;
+        }
+
+        if (this.name === 'dumper') {
+            this.drawAttachedShooterTriangle(ctx, Math.PI);
+            return;
+        }
+
+        const aimedLocalAngle = normalizeAngleDiff(
+            this.getAimedShotAngle(alliance) - this.angle
+        );
+
+        if (this.name === 'double turret') {
+            this.drawAttachedShooterTriangle(ctx, aimedLocalAngle, -6);
+            this.drawAttachedShooterTriangle(ctx, aimedLocalAngle, 6);
+            return;
+        }
+
+        this.drawAttachedShooterTriangle(ctx, aimedLocalAngle);
+    }
+
+    getInventoryFillRatio() {
+        if (!this.model.capacity) return 0;
+        return Math.max(0, Math.min(1, this.inventory / this.model.capacity));
+    }
+
+    getInventoryTextColor() {
+        const ratio = this.getInventoryFillRatio();
+        const greenBlue = Math.round(255 - ratio * 64);
+        return `rgb(255, ${greenBlue}, ${greenBlue})`;
+    }
+
+    drawInventoryNumber(ctx) {
+        const ratio = this.getInventoryFillRatio();
+        const remaining = this.model.capacity - this.inventory;
+        const nearFullRatio = Math.max(0, Math.min(1, (20 - remaining) / 20));
+        const isFull = this.inventory >= this.model.capacity;
+        const fontSize = isFull ? 23 : 17 + Math.round(nearFullRatio * 4);
+
+        ctx.save();
+        ctx.rotate(-this.angle);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `900 ${fontSize}px Segoe UI`;
+
+        if (nearFullRatio > 0 || isFull) {
+            ctx.shadowColor = isFull ? '#f59e0b' : '#fbbf24';
+            ctx.shadowBlur = isFull ? 20 : 5 + nearFullRatio * 14;
+        }
+
+        if (isFull) {
+            ctx.strokeStyle = '#111';
+            ctx.lineWidth = 5;
+            ctx.strokeText(this.inventory, 0, 1);
+        }
+
+        ctx.fillStyle = isFull ? '#f59e0b' : this.getInventoryTextColor();
+        ctx.fillText(this.inventory, 0, 1);
+        ctx.restore();
+    }
+
     draw(ctx, alliance) {
         ctx.save();
         ctx.translate(this.x + this.model.w / 2, this.y + this.model.h / 2);
@@ -290,6 +410,8 @@ export class Robot {
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 2;
         ctx.strokeRect(-this.model.w / 2, -this.model.h / 2, this.model.w, this.model.h);
+
+        this.drawShooterIndicators(ctx, alliance);
 
         ctx.fillStyle = '#fbbf24';
 
@@ -306,11 +428,7 @@ export class Robot {
             ctx.fillRect(this.model.w / 2 - 2, bY, bW, bH);
         }
 
-        ctx.rotate(-this.angle);
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 14px Segoe UI';
-        ctx.textAlign = 'center';
-        ctx.fillText(this.inventory, 0, 5);
+        this.drawInventoryNumber(ctx);
         ctx.restore();
     }
 }

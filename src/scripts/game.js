@@ -182,22 +182,37 @@ function resolveRobotCollisions() {
 }
 
 function updateScoringBalls(now) {
+    const exitPortOffsets = [-0.34, -0.12, 0.12, 0.34];
+
     state.scoringBalls = state.scoringBalls.filter(sb => {
         if (now < sb.exitTime) return true;
 
         const dir = sb.side === 'red' ? 1 : -1;
-        const exitSpeed = 3.0 + Math.random() * 1.0;
-        const exitAngle = (Math.random() - 0.5) * 0.8;
+        const portOffset = exitPortOffsets[Math.floor(Math.random() * exitPortOffsets.length)];
+
+        const exitX = sb.side === 'red'
+            ? sb.hubX + HUB_S + BALL_R + 2
+            : sb.hubX - BALL_R - 2;
+
+        const exitY = sb.hubY + HUB_S / 2 + portOffset * HUB_S + (Math.random() - 0.5) * BALL_R * 0.8;
+
+        const targetX = exitX + (FIELD_W / 2 - exitX) * 0.65;
+        const targetY = exitY + (Math.random() - 0.5) * HUB_S * 1.35;
+
+        const baseAngle = Math.atan2(targetY - exitY, targetX - exitX);
+        const exitAngle = baseAngle + (Math.random() - 0.5) * 0.26;
+        const exitSpeed = 2.75 + Math.random() * 1.35;
 
         state.balls.push({
-            x: sb.side === 'red' ? sb.hubX + HUB_S + BALL_R + 2 : sb.hubX - BALL_R - 2,
-            y: sb.hubY + HUB_S / 2,
+            x: exitX,
+            y: exitY,
             r: BALL_R,
-            vx: Math.cos(exitAngle) * (dir * exitSpeed),
+            vx: Math.cos(exitAngle) * exitSpeed,
             vy: Math.sin(exitAngle) * exitSpeed,
             isStatic: false,
-            frictionMod: 0.985,
-            rollTimer: now + 1500,
+            frictionMod: 0.5,
+            randomDrift: 0.018,
+            rollTimer: now + 3000,
             wasOnBump: false,
             owner: sb.side
         });
@@ -356,21 +371,121 @@ function tryStoreBallInOutpost(b) {
 }
 
 function updateBallCollisions() {
-    for (let i = 0; i < state.balls.length; i++) {
-        for (let j = i + 1; j < state.balls.length; j++) {
-            resolveBallCollision(state.balls[i], state.balls[j]);
+    const passes = 3;
+
+    for (let pass = 0; pass < passes; pass++) {
+        for (let i = 0; i < state.balls.length; i++) {
+            for (let j = i + 1; j < state.balls.length; j++) {
+                resolveBallCollision(state.balls[i], state.balls[j]);
+            }
         }
     }
 }
 
-function getBotAlliance(bot) {
-    if (bot === state.botRed) return 'red';
-    return state.sameTeamMode ? 'red' : 'blue';
+function capRollingBallSpeed(b) {
+    const speed = Math.hypot(b.vx, b.vy);
+    const maxSpeed = 8.5;
+
+    if (speed <= maxSpeed) {
+        return;
+    }
+
+    b.vx = (b.vx / speed) * maxSpeed;
+    b.vy = (b.vy / speed) * maxSpeed;
 }
 
-function getBotIntakePosition(bot) {
+function removeBallVelocityIntoNormal(b, nx, ny) {
+    const intoSurface = b.vx * nx + b.vy * ny;
+
+    if (intoSurface < 0) {
+        b.vx -= nx * intoSurface;
+        b.vy -= ny * intoSurface;
+    }
+}
+
+function removeRobotVelocityIntoBall(bot, nx, ny) {
+    const intoBall = bot.vx * nx + bot.vy * ny;
+
+    if (intoBall > 0) {
+        bot.vx -= nx * intoBall;
+        bot.vy -= ny * intoBall;
+    }
+}
+
+function ballCanOccupy(b, x, y) {
+    if (x < b.r || y < b.r || x > FIELD_W - b.r || y > FIELD_H - b.r) {
+        return false;
+    }
+
+    return !state.obstacles.some(o => {
+        if (o.type === 'trench') return false;
+
+        return circleRectCollision({
+            ...b,
+            x,
+            y
+        }, o).hit;
+    });
+}
+
+function ballBlockedByPushSurfaceAt(b, x, y, nx, ny) {
+    const minIntoSurface = 0.35;
+
+    if (x < b.r && nx < -minIntoSurface) {
+        return true;
+    }
+
+    if (x > FIELD_W - b.r && nx > minIntoSurface) {
+        return true;
+    }
+
+    if (y < b.r && ny < -minIntoSurface) {
+        return true;
+    }
+
+    if (y > FIELD_H - b.r && ny > minIntoSurface) {
+        return true;
+    }
+
+    return state.obstacles.some(o => {
+        if (o.type === 'trench') return false;
+
+        const col = circleRectCollision({
+            ...b,
+            x,
+            y
+        }, o);
+
+        if (!col.hit) {
+            return false;
+        }
+
+        return nx * col.nx + ny * col.ny < -minIntoSurface;
+    });
+}
+
+function getRobotsOverlappingBallAt(b, x, y) {
+    const activeBots = state.p2Enabled
+        ? [state.botRed, state.botBlue]
+        : [state.botRed];
+
+    return activeBots.filter(bot => circleRectCollision({
+        ...b,
+        x,
+        y
+    }, {
+        x: bot.x,
+        y: bot.y,
+        w: bot.model.w,
+        h: bot.model.h
+    }).hit);
+}
+
+function getRobotIntakePosition(bot) {
     if (bot.name === 'Blitz') {
-        const intakeAngleOffset = bot.intakeSide === 'right' ? Math.PI / 2 : -Math.PI / 2;
+        const intakeAngleOffset = bot.intakeSide === 'right'
+            ? Math.PI / 2
+            : -Math.PI / 2;
 
         return {
             x: bot.x + bot.model.w / 2 + Math.cos(bot.angle + intakeAngleOffset) * (bot.model.w / 2 + 5),
@@ -382,6 +497,931 @@ function getBotIntakePosition(bot) {
         x: bot.x + bot.model.w / 2 + Math.cos(bot.angle) * (bot.model.w / 2 + 5),
         y: bot.y + bot.model.h / 2 + Math.sin(bot.angle) * (bot.model.w / 2 + 5)
     };
+}
+
+function getBallRelativeToIntake(bot, b) {
+    const intakePos = getRobotIntakePosition(bot);
+
+    const dx = b.x - intakePos.x;
+    const dy = b.y - intakePos.y;
+
+    let intakeAngle;
+
+    if (bot.name === 'Blitz') {
+        intakeAngle = bot.angle + (
+            bot.intakeSide === 'right'
+                ? Math.PI / 2
+                : -Math.PI / 2
+        );
+    } else {
+        intakeAngle = bot.angle;
+    }
+
+    const forwardX = Math.cos(intakeAngle);
+    const forwardY = Math.sin(intakeAngle);
+    const lateralX = -forwardY;
+    const lateralY = forwardX;
+
+    const approachSpeed = Math.max(0, bot.vx * forwardX + bot.vy * forwardY);
+
+    return {
+        forward: dx * forwardX + dy * forwardY,
+        lateral: dx * lateralX + dy * lateralY,
+        distance: Math.hypot(dx, dy),
+        approachSpeed,
+        forwardX,
+        forwardY,
+        lateralX,
+        lateralY
+    };
+}
+
+function getIntakeAssistProfile(bot, b) {
+    const rel = getBallRelativeToIntake(bot, b);
+
+    const speedFactor = Math.min(1, rel.approachSpeed / 5.5);
+
+    return {
+        rel,
+        speedFactor,
+
+        pickupForwardReach: 2,
+        pickupRearTolerance: 3,
+        pickupLateralReach: 20,
+
+        pullForwardReach: 8 + speedFactor * 20,
+        pullRearTolerance: 10,
+        pullLateralReach: 20 + speedFactor * 12,
+        pullStrength: 0.12 + speedFactor * 0.5,
+
+        plowForwardReach: 5000 + speedFactor * 150,
+        plowRearTolerance: 1000,
+        plowLateralReach: 5000 + speedFactor * 50
+    };
+}
+
+function robotCanIntakeBallNow(bot, b) {
+    if (bot.inventory >= bot.model.capacity) {
+        return false;
+    }
+
+    const profile = getIntakeAssistProfile(bot, b);
+    const rel = profile.rel;
+
+    return rel.forward > -profile.pickupRearTolerance &&
+        rel.forward < profile.pickupForwardReach &&
+        Math.abs(rel.lateral) < profile.pickupLateralReach;
+}
+
+function robotCanIntakeBallSoon(bot, b) {
+    if (bot.inventory >= bot.model.capacity) {
+        return false;
+    }
+
+    const profile = getIntakeAssistProfile(bot, b);
+    const rel = profile.rel;
+
+    return rel.forward > -profile.pullRearTolerance &&
+        rel.forward < profile.pullForwardReach &&
+        Math.abs(rel.lateral) < profile.pullLateralReach;
+}
+
+function robotCanPlowBallForIntake(bot, b) {
+    if (bot.inventory >= bot.model.capacity) {
+        return false;
+    }
+
+    const profile = getIntakeAssistProfile(bot, b);
+    const rel = profile.rel;
+
+    return rel.forward > -1 &&
+        rel.forward < profile.plowForwardReach &&
+        Math.abs(rel.lateral) < profile.plowLateralReach;
+}
+
+function isFrontIntakeContact(bot, b, col, wallPinned = false) {
+    const profile = getIntakeAssistProfile(bot, b);
+    const rel = profile.rel;
+
+    const contactForward = col.nx * rel.forwardX + col.ny * rel.forwardY;
+
+    const minContactForward = wallPinned ? -0.40 : -0.18;
+    const rearTolerance = wallPinned ? -4 : -2;
+    const forwardReach = wallPinned ? 30 : 16;
+    const lateralReach = profile.plowLateralReach + (wallPinned ? 18 : 0);
+
+    return contactForward > minContactForward &&
+        rel.forward > rearTolerance &&
+        rel.forward < forwardReach &&
+        Math.abs(rel.lateral) < lateralReach;
+}
+
+function robotCanScoopContactBall(bot, b, col) {
+    if (bot.inventory >= bot.model.capacity) {
+        return false;
+    }
+
+    const profile = getIntakeAssistProfile(bot, b);
+    const rel = profile.rel;
+
+    const contactForward = col.nx * rel.forwardX + col.ny * rel.forwardY;
+
+    return rel.approachSpeed > 0.35 &&
+        contactForward > -0.25 &&
+        rel.forward > -4 &&
+        rel.forward < 18 &&
+        Math.abs(rel.lateral) < profile.plowLateralReach + 8;
+}
+
+function pullBallTowardIntake(bot, b) {
+    const intakePos = getRobotIntakePosition(bot);
+    const profile = getIntakeAssistProfile(bot, b);
+    const rel = profile.rel;
+
+    const sideTarget = Math.max(
+        -profile.pickupLateralReach * 0.85,
+        Math.min(profile.pickupLateralReach * 0.85, rel.lateral)
+    );
+
+    const targetX = intakePos.x + rel.lateralX * sideTarget;
+    const targetY = intakePos.y + rel.lateralY * sideTarget;
+
+    const dx = targetX - b.x;
+    const dy = targetY - b.y;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < 0.001) {
+        return;
+    }
+
+    const ux = dx / dist;
+    const uy = dy / dist;
+
+    const lateralRatio = Math.min(1, Math.abs(rel.lateral) / profile.pullLateralReach);
+    const sideMouthBoost = 1 + lateralRatio * 0.20;
+    const strength = profile.pullStrength * sideMouthBoost;
+
+    b.vx += ux * strength;
+    b.vy += uy * strength;
+    b.isStatic = false;
+
+    capRollingBallSpeed(b);
+}
+
+function separatePlowBallFromRobot(b, col) {
+    const pushDistance = Math.min(col.overlap + 0.14, b.r * 0.95);
+    const targetX = b.x + col.nx * pushDistance;
+    const targetY = b.y + col.ny * pushDistance;
+
+    if (ballCanOccupy(b, targetX, targetY)) {
+        b.x = targetX;
+        b.y = targetY;
+        removeBallVelocityIntoNormal(b, col.nx, col.ny);
+        b.isStatic = false;
+        return true;
+    }
+
+    if (ballCanOccupy(b, targetX, b.y)) {
+        b.x = targetX;
+        removeBallVelocityIntoNormal(b, col.nx, 0);
+        b.isStatic = false;
+        return true;
+    }
+
+    if (ballCanOccupy(b, b.x, targetY)) {
+        b.y = targetY;
+        removeBallVelocityIntoNormal(b, 0, col.ny);
+        b.isStatic = false;
+        return true;
+    }
+
+    return false;
+}
+
+function getConnectedIntakeClump(bot, contactBall) {
+    const clump = [];
+    const visited = new Set();
+    const queue = [contactBall];
+    const contactDistance = BALL_R * 2.45;
+
+    while (queue.length > 0) {
+        const ball = queue.shift();
+
+        if (visited.has(ball)) {
+            continue;
+        }
+
+        visited.add(ball);
+
+        const rel = getBallRelativeToIntake(bot, ball);
+
+        if (
+            rel.forward < -BALL_R * 2.0 ||
+            rel.forward > BALL_R * 16.0 ||
+            Math.abs(rel.lateral) > BALL_R * 13.0
+        ) {
+            continue;
+        }
+
+        clump.push(ball);
+
+        for (const other of state.balls) {
+            if (other === ball || visited.has(other)) {
+                continue;
+            }
+
+            const dx = other.x - ball.x;
+            const dy = other.y - ball.y;
+
+            if (dx * dx + dy * dy <= contactDistance * contactDistance) {
+                queue.push(other);
+            }
+        }
+    }
+
+    return clump;
+}
+
+function isIntakeClumpWallPinned(bot, clump) {
+    for (const ball of clump) {
+        const rel = getBallRelativeToIntake(bot, ball);
+        const probeStep = ball.r * 0.65;
+        const probeX = ball.x + rel.forwardX * probeStep;
+        const probeY = ball.y + rel.forwardY * probeStep;
+
+        if (
+            !ballCanOccupy(ball, probeX, probeY) &&
+            ballBlockedByPushSurfaceAt(ball, probeX, probeY, rel.forwardX, rel.forwardY)
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function isLocalIntakeClumpWallPinned(bot, contactBall) {
+    const maxLocalClumpDistance = BALL_R * 7.5;
+
+    for (const ball of state.balls) {
+        const dxToContact = ball.x - contactBall.x;
+        const dyToContact = ball.y - contactBall.y;
+
+        if (Math.hypot(dxToContact, dyToContact) > maxLocalClumpDistance) {
+            continue;
+        }
+
+        if (!robotCanPlowBallForIntake(bot, ball)) {
+            continue;
+        }
+
+        const rel = getBallRelativeToIntake(bot, ball);
+        const probeStep = ball.r * 0.65;
+        const probeX = ball.x + rel.forwardX * probeStep;
+        const probeY = ball.y + rel.forwardY * probeStep;
+
+        if (
+            !ballCanOccupy(ball, probeX, probeY) &&
+            ballBlockedByPushSurfaceAt(ball, probeX, probeY, rel.forwardX, rel.forwardY)
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+function applyIntakePlowAssist(bot, contactBall) {
+    const clump = getConnectedIntakeClump(bot, contactBall);
+    const wallPinned = isIntakeClumpWallPinned(bot, clump);
+
+    if (robotCanIntakeBallSoon(bot, contactBall)) {
+        pullBallTowardIntake(bot, contactBall);
+    }
+
+    let assistedCount = 0;
+    const maxAssistedCount = wallPinned ? 24 : 10;
+
+    for (const ball of clump) {
+        if (!robotCanPlowBallForIntake(bot, ball)) {
+            continue;
+        }
+
+        const profile = getIntakeAssistProfile(bot, ball);
+        const rel = profile.rel;
+
+        const overlapLoad = Math.min(1.0, getBallOverlapAmountAt(ball, ball.x, ball.y) / ball.r);
+
+        const forwardShove = wallPinned
+            ? 0.030 + overlapLoad * 0.025
+            : 0.012 + profile.speedFactor * 0.030;
+
+        ball.vx += rel.forwardX * forwardShove;
+        ball.vy += rel.forwardY * forwardShove;
+
+        ball.vx *= wallPinned ? 0.997 : 0.992;
+        ball.vy *= wallPinned ? 0.997 : 0.992;
+        ball.isStatic = false;
+
+        capRollingBallSpeed(ball);
+
+        assistedCount++;
+
+        if (assistedCount >= maxAssistedCount) {
+            break;
+        }
+    }
+}
+
+function tryRelaxBallOrYieldRobot(ball, dx, dy) {
+    const moveLength = Math.hypot(dx, dy);
+
+    if (moveLength < 0.001) {
+        return false;
+    }
+
+    const targetX = ball.x + dx;
+    const targetY = ball.y + dy;
+
+    if (ballCanRelaxTo(ball, targetX, targetY)) {
+        ball.x = targetX;
+        ball.y = targetY;
+        return true;
+    }
+
+    if (ballCanRelaxTo(ball, targetX, ball.y)) {
+        ball.x = targetX;
+        return true;
+    }
+
+    if (ballCanRelaxTo(ball, ball.x, targetY)) {
+        ball.y = targetY;
+        return true;
+    }
+
+    if (!ballCanOccupy(ball, targetX, targetY)) {
+        return false;
+    }
+
+    const blockingRobots = getRobotsOverlappingBallAt(ball, targetX, targetY);
+
+    if (blockingRobots.length === 0) {
+        return false;
+    }
+
+    const ux = dx / moveLength;
+    const uy = dy / moveLength;
+    let movedRobot = false;
+
+    for (const bot of blockingRobots) {
+        const robotDx = dx * 0.65;
+        const robotDy = dy * 0.65;
+
+        if (tryMoveRobotForCollision(bot, robotDx, robotDy)) {
+            movedRobot = true;
+        }
+
+        removeRobotVelocityIntoBall(bot, -ux, -uy);
+    }
+
+    if (movedRobot && ballCanRelaxTo(ball, targetX, targetY)) {
+        ball.x = targetX;
+        ball.y = targetY;
+        return true;
+    }
+
+    return movedRobot;
+}
+
+function ballCanRelaxTo(b, x, y) {
+    return ballCanOccupy(b, x, y) &&
+        getRobotsOverlappingBallAt(b, x, y).length === 0;
+}
+
+function ballOverlapsOtherBallAt(ball, x, y, ignoredBall = null, slop = 0.05) {
+    for (const other of state.balls) {
+        if (other === ball || other === ignoredBall) continue;
+
+        const dx = other.x - x;
+        const dy = other.y - y;
+        const minDist = ball.r + other.r - slop;
+
+        if (dx * dx + dy * dy < minDist * minDist) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function getBallOverlapAmountAt(ball, x, y, slop = 0.04) {
+    let overlap = 0;
+
+    for (const other of state.balls) {
+        if (other === ball) continue;
+
+        const dx = other.x - x;
+        const dy = other.y - y;
+        const minDist = ball.r + other.r - slop;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq >= minDist * minDist) {
+            continue;
+        }
+
+        const dist = Math.max(0.001, Math.sqrt(distSq));
+        overlap += minDist - dist;
+    }
+
+    return overlap;
+}
+
+function getBestBallReliefMove(ball, nx, ny, step, minForwardDot = -0.25) {
+    const tangentX = -ny;
+    const tangentY = nx;
+    const currentOverlap = getBallOverlapAmountAt(ball, ball.x, ball.y);
+
+    const directions = [
+        { x: nx, y: ny },
+        { x: nx * 0.85 + tangentX * 0.55, y: ny * 0.85 + tangentY * 0.55 },
+        { x: nx * 0.85 - tangentX * 0.55, y: ny * 0.85 - tangentY * 0.55 },
+        { x: nx * 0.35 + tangentX, y: ny * 0.35 + tangentY },
+        { x: nx * 0.35 - tangentX, y: ny * 0.35 - tangentY },
+        { x: tangentX, y: tangentY },
+        { x: -tangentX, y: -tangentY },
+        { x: -nx * 0.20 + tangentX, y: -ny * 0.20 + tangentY },
+        { x: -nx * 0.20 - tangentX, y: -ny * 0.20 - tangentY }
+    ];
+
+    let bestMove = null;
+    let bestScore = -Infinity;
+
+    for (const dir of directions) {
+        const length = Math.hypot(dir.x, dir.y);
+
+        if (length < 0.001) {
+            continue;
+        }
+
+        const ux = dir.x / length;
+        const uy = dir.y / length;
+        const forwardDot = ux * nx + uy * ny;
+
+        if (forwardDot < minForwardDot) {
+            continue;
+        }
+
+        const targetX = ball.x + ux * step;
+        const targetY = ball.y + uy * step;
+
+        if (!ballCanRelaxTo(ball, targetX, targetY)) {
+            continue;
+        }
+
+        const targetOverlap = getBallOverlapAmountAt(ball, targetX, targetY);
+        const overlapImprovement = currentOverlap - targetOverlap;
+
+        if (targetOverlap > currentOverlap + 0.08) {
+            continue;
+        }
+
+        const score = overlapImprovement * 2.0 + forwardDot * 0.35;
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestMove = {
+                dx: ux * step,
+                dy: uy * step,
+                score,
+                forwardDot
+            };
+        }
+    }
+
+    return bestMove;
+}
+
+function tryMovePackTowardOpenRelief(pack, startBall, nx, ny) {
+    const step = Math.min(startBall.r * 0.55, 2.8);
+    const orderedPack = [...pack].sort((a, b) => {
+        const aForward = (a.x - startBall.x) * nx + (a.y - startBall.y) * ny;
+        const bForward = (b.x - startBall.x) * nx + (b.y - startBall.y) * ny;
+
+        return bForward - aForward;
+    });
+
+    let movedAny = false;
+    let movedCount = 0;
+
+    for (const ball of orderedPack) {
+        const move = getBestBallReliefMove(ball, nx, ny, step, -0.35);
+
+        if (!move || move.score < -0.02) {
+            continue;
+        }
+
+        ball.x += move.dx;
+        ball.y += move.dy;
+        ball.isStatic = false;
+        movedAny = true;
+        movedCount++;
+
+        if (movedCount >= 5) {
+            break;
+        }
+    }
+
+    return movedAny;
+}
+
+function getForwardBallPack(startBall, nx, ny) {
+    const pack = [];
+    const visited = new Set();
+    const queue = [startBall];
+
+    while (queue.length > 0) {
+        const ball = queue.shift();
+
+        if (visited.has(ball)) {
+            continue;
+        }
+
+        visited.add(ball);
+        pack.push(ball);
+
+        for (const other of state.balls) {
+            if (other === ball || visited.has(other)) {
+                continue;
+            }
+
+            const dx = other.x - ball.x;
+            const dy = other.y - ball.y;
+
+            const forward = dx * nx + dy * ny;
+            const lateral = Math.abs(dx * -ny + dy * nx);
+            const centerDistSq = dx * dx + dy * dy;
+            const contactDist = ball.r + other.r + 1.2;
+
+            if (centerDistSq > contactDist * contactDist) {
+                continue;
+            }
+
+            if (forward < -ball.r * 0.35 || forward > ball.r * 2.25) {
+                continue;
+            }
+
+            if (lateral > ball.r * 1.65) {
+                continue;
+            }
+
+            queue.push(other);
+        }
+    }
+
+    return pack;
+}
+
+function isBallPackConstrainedIntoWall(startBall, nx, ny) {
+    const pack = getForwardBallPack(startBall, nx, ny);
+    const probeStep = startBall.r * 0.50;
+
+    for (const ball of pack) {
+        const probeX = ball.x + nx * probeStep;
+        const probeY = ball.y + ny * probeStep;
+
+        if (ballCanOccupy(ball, probeX, probeY)) {
+            continue;
+        }
+
+        if (!ballBlockedByPushSurfaceAt(ball, probeX, probeY, nx, ny)) {
+            continue;
+        }
+
+        const forwardishEscape = getBestBallReliefMove(ball, nx, ny, probeStep, 0.10);
+
+        if (forwardishEscape) {
+            continue;
+        }
+
+        return {
+            constrained: true,
+            pack
+        };
+    }
+
+    return {
+        constrained: false,
+        pack
+    };
+}
+
+function addPackEntropyVelocity(pack, startBall, nx, ny, strength) {
+    const tangentX = -ny;
+    const tangentY = nx;
+
+    for (let i = 0; i < pack.length; i++) {
+        const ball = pack[i];
+
+        const dx = ball.x - startBall.x;
+        const dy = ball.y - startBall.y;
+        const forward = dx * nx + dy * ny;
+        const lateral = dx * tangentX + dy * tangentY;
+
+        let side = Math.sign(lateral);
+
+        if (side === 0) {
+            side = i % 2 === 0 ? 1 : -1;
+        }
+
+        const distanceFalloff = Math.max(0.25, 1 - Math.max(0, forward) / (startBall.r * 8));
+        const amount = strength * distanceFalloff;
+
+        ball.vx += tangentX * side * amount;
+        ball.vy += tangentY * side * amount;
+
+        ball.isStatic = false;
+        capRollingBallSpeed(ball);
+    }
+}
+
+function pushRobotAwayFromBall(bot, nx, ny, amount) {
+    const robotPushX = -nx * amount;
+    const robotPushY = -ny * amount;
+
+    if (robotCanOccupy(bot, bot.x + robotPushX, bot.y + robotPushY)) {
+        bot.x += robotPushX;
+        bot.y += robotPushY;
+        return;
+    }
+
+    if (robotCanOccupy(bot, bot.x + robotPushX, bot.y)) {
+        bot.x += robotPushX;
+    }
+
+    if (robotCanOccupy(bot, bot.x, bot.y + robotPushY)) {
+        bot.y += robotPushY;
+    }
+}
+
+function resolveBallWorldConstraints(b) {
+    if (b.x < b.r) {
+        b.x = b.r;
+        removeBallVelocityIntoNormal(b, 1, 0);
+    }
+
+    if (b.x > FIELD_W - b.r) {
+        b.x = FIELD_W - b.r;
+        removeBallVelocityIntoNormal(b, -1, 0);
+    }
+
+    if (b.y < b.r) {
+        b.y = b.r;
+        removeBallVelocityIntoNormal(b, 0, 1);
+    }
+
+    if (b.y > FIELD_H - b.r) {
+        b.y = FIELD_H - b.r;
+        removeBallVelocityIntoNormal(b, 0, -1);
+    }
+
+    for (let pass = 0; pass < 2; pass++) {
+        state.obstacles.forEach(o => {
+            if (o.type === 'trench') return;
+
+            const col = circleRectCollision(b, o);
+            if (!col.hit) return;
+
+            b.x += col.nx * (col.overlap + 0.05);
+            b.y += col.ny * (col.overlap + 0.05);
+            removeBallVelocityIntoNormal(b, col.nx, col.ny);
+        });
+    }
+
+    capRollingBallSpeed(b);
+}
+
+function separateBallFromRobot(b, bot) {
+    const robotRect = {
+        x: bot.x,
+        y: bot.y,
+        w: bot.model.w,
+        h: bot.model.h
+    };
+
+    const col = circleRectCollision(b, robotRect);
+
+    if (!col.hit) {
+        return false;
+    }
+
+    const wallPinned = isLocalIntakeClumpWallPinned(bot, b);
+    const frontIntakeContact = isFrontIntakeContact(bot, b, col, wallPinned);
+
+    if (robotCanIntakeBallSoon(bot, b)) {
+        if (separatePlowBallFromRobot(b, col)) {
+            applyIntakePlowAssist(bot, b);
+            return true;
+        }
+    }
+
+    if (frontIntakeContact && robotCanPlowBallForIntake(bot, b)) {
+        if (separatePlowBallFromRobot(b, col)) {
+            applyIntakePlowAssist(bot, b);
+            return true;
+        }
+    }
+
+    const pushDistance = col.overlap + 0.15;
+    const ballTargetX = b.x + col.nx * pushDistance;
+    const ballTargetY = b.y + col.ny * pushDistance;
+    const targetOverlapsBall = ballOverlapsOtherBallAt(b, ballTargetX, ballTargetY);
+
+    if (targetOverlapsBall) {
+        const packState = isBallPackConstrainedIntoWall(b, col.nx, col.ny);
+
+        if (packState.constrained) {
+            const movedRelief = tryMovePackTowardOpenRelief(packState.pack, b, col.nx, col.ny);
+
+            addPackEntropyVelocity(
+                packState.pack,
+                b,
+                col.nx,
+                col.ny,
+                movedRelief ? 0.28 : 0.40
+            );
+
+            const smallNudge = Math.min(pushDistance * 0.08, 0.24);
+            const nudgeX = col.nx * smallNudge;
+            const nudgeY = col.ny * smallNudge;
+
+            if (
+                movedRelief &&
+                ballCanRelaxTo(b, b.x + nudgeX, b.y + nudgeY) &&
+                getBallOverlapAmountAt(b, b.x + nudgeX, b.y + nudgeY) <= getBallOverlapAmountAt(b, b.x, b.y) + 0.03
+            ) {
+                b.x += nudgeX;
+                b.y += nudgeY;
+            }
+
+            const robotCorrection = movedRelief
+                ? Math.min(0.03 + pushDistance * 0.06, 0.22)
+                : Math.min(0.12 + pushDistance * 0.12, 0.45);
+
+            pushRobotAwayFromBall(bot, col.nx, col.ny, robotCorrection);
+            removeRobotVelocityIntoBall(bot, col.nx, col.ny);
+
+            b.vx *= movedRelief ? 0.92 : 0.78;
+            b.vy *= movedRelief ? 0.92 : 0.78;
+            b.isStatic = false;
+            capRollingBallSpeed(b);
+
+            return true;
+        }
+
+        addPackEntropyVelocity(packState.pack, b, col.nx, col.ny, 0.13);
+    }
+
+    if (ballCanOccupy(b, ballTargetX, ballTargetY)) {
+        const botSpeed = Math.hypot(bot.vx, bot.vy);
+        const pushSpeed = Math.max(0, bot.vx * col.nx + bot.vy * col.ny);
+        const carrySpeed = Math.min(0.75, pushSpeed * 0.10 + botSpeed * 0.025 + 0.08);
+
+        b.x = ballTargetX;
+        b.y = ballTargetY;
+
+        removeBallVelocityIntoNormal(b, col.nx, col.ny);
+
+        b.vx += col.nx * carrySpeed;
+        b.vy += col.ny * carrySpeed;
+
+        resolveBallWorldConstraints(b);
+        capRollingBallSpeed(b);
+
+        b.isStatic = false;
+        return true;
+    }
+
+    const robotCorrection = Math.min(pushDistance * 0.45, 1.2);
+
+    pushRobotAwayFromBall(bot, col.nx, col.ny, robotCorrection);
+    removeRobotVelocityIntoBall(bot, col.nx, col.ny);
+
+    b.vx *= 0.15;
+    b.vy *= 0.15;
+    resolveBallWorldConstraints(b);
+
+    return true;
+}
+
+function resolveRobotBallPinning() {
+    const activeBots = state.p2Enabled
+        ? [state.botRed, state.botBlue]
+        : [state.botRed];
+
+    for (let pass = 0; pass < 2; pass++) {
+        for (const bot of activeBots) {
+            for (const b of state.balls) {
+                separateBallFromRobot(b, bot);
+            }
+        }
+    }
+}
+
+function relaxBallPackPositionOnly(passes = 6) {
+    const contactSlop = 0.04;
+    const correctionPercent = 0.55;
+    const maxPairCorrection = 0.95;
+    const maxBallMovePerPass = 1.10;
+
+    for (let pass = 0; pass < passes; pass++) {
+        const corrections = new Map();
+
+        function addCorrection(ball, dx, dy) {
+            const existing = corrections.get(ball) || { dx: 0, dy: 0 };
+
+            existing.dx += dx;
+            existing.dy += dy;
+
+            corrections.set(ball, existing);
+        }
+
+        for (let i = 0; i < state.balls.length; i++) {
+            for (let j = i + 1; j < state.balls.length; j++) {
+                const b1 = state.balls[i];
+                const b2 = state.balls[j];
+
+                let dx = b2.x - b1.x;
+                let dy = b2.y - b1.y;
+
+                const minDist = b1.r + b2.r;
+                const distSq = dx * dx + dy * dy;
+
+                if (distSq >= minDist * minDist) {
+                    continue;
+                }
+
+                let dist = Math.sqrt(distSq);
+
+                if (dist < 0.001) {
+                    dx = 1;
+                    dy = 0;
+                    dist = 1;
+                }
+
+                const overlap = minDist - dist - contactSlop;
+
+                if (overlap <= 0) {
+                    continue;
+                }
+
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const correction = Math.min(overlap * correctionPercent, maxPairCorrection);
+                const halfCorrection = correction * 0.5;
+
+                addCorrection(b1, -nx * halfCorrection, -ny * halfCorrection);
+                addCorrection(b2, nx * halfCorrection, ny * halfCorrection);
+            }
+        }
+
+        if (corrections.size === 0) {
+            break;
+        }
+
+        let movedAny = false;
+
+        corrections.forEach((correction, ball) => {
+            const moveLength = Math.hypot(correction.dx, correction.dy);
+
+            if (moveLength < 0.001) {
+                return;
+            }
+
+            const scale = Math.min(1, maxBallMovePerPass / moveLength);
+            const dx = correction.dx * scale;
+            const dy = correction.dy * scale;
+
+            if (ballCanRelaxTo(ball, ball.x + dx, ball.y + dy)) {
+                ball.x += dx;
+                ball.y += dy;
+                movedAny = true;
+                return;
+            }
+
+            if (ballCanRelaxTo(ball, ball.x + dx, ball.y)) {
+                ball.x += dx;
+                movedAny = true;
+            }
+
+            if (ballCanRelaxTo(ball, ball.x, ball.y + dy)) {
+                ball.y += dy;
+                movedAny = true;
+            }
+        });
+
+        if (!movedAny) {
+            break;
+        }
+    }
 }
 
 function updateBalls(now) {
@@ -407,19 +1447,39 @@ function updateBalls(now) {
             b.x += b.vx;
             b.y += b.vy;
 
-            const friction = b.rollTimer && now < b.rollTimer
-                ? b.frictionMod
-                : onBump
-                    ? 0.97
-                    : 0.94;
+            const speed = Math.hypot(b.vx, b.vy);
 
-            b.vx *= friction;
-            b.vy *= friction;
+            if (speed > 0) {
+                const frictionMod = b.frictionMod ?? 1.0;
+                const randomDrift = b.randomDrift ?? 0.0;
 
-            if (Math.hypot(b.vx, b.vy) < 0.10) {
-                b.vx = 0;
-                b.vy = 0;
-                b.isStatic = true;
+                if (randomDrift > 0 && speed > 0.35) {
+                    const tangentX = -b.vy / speed;
+                    const tangentY = b.vx / speed;
+                    const drift = (Math.random() - 0.5) * randomDrift;
+
+                    b.vx += tangentX * drift;
+                    b.vy += tangentY * drift;
+                }
+
+                const baseDecel = b.rollTimer && now < b.rollTimer
+                    ? 0.035
+                    : onBump
+                        ? 0.045
+                        : 0.065;
+
+                const decel = baseDecel * frictionMod;
+                const nextSpeed = Math.max(0, speed - decel);
+
+                if (nextSpeed <= 0.001) {
+                    b.vx = 0;
+                    b.vy = 0;
+                    b.isStatic = true;
+                } else {
+                    const scale = nextSpeed / speed;
+                    b.vx *= scale;
+                    b.vy *= scale;
+                }
             }
         }
 
@@ -427,50 +1487,36 @@ function updateBalls(now) {
             return false;
         }
 
-        if (b.x < b.r) {
-            b.x = b.r;
-            b.vx *= -0.2;
-            b.isStatic = false;
-        }
-
-        if (b.x > FIELD_W - b.r) {
-            b.x = FIELD_W - b.r;
-            b.vx *= -0.2;
-            b.isStatic = false;
-        }
-
-        if (b.y < b.r) {
-            b.y = b.r;
-            b.vy *= -0.2;
-            b.isStatic = false;
-        }
-
-        if (b.y > FIELD_H - b.r) {
-            b.y = FIELD_H - b.r;
-            b.vy *= -0.2;
-            b.isStatic = false;
-        }
-
-        state.obstacles.forEach(o => {
-            if (o.type === 'trench') return;
-
-            const col = circleRectCollision(b, o);
-            if (!col.hit) return;
-
-            b.isStatic = false;
-            b.vx *= 0.8;
-            b.vy *= 0.8;
-            b.x += col.nx * col.overlap;
-            b.y += col.ny * col.overlap;
-        });
+        resolveBallWorldConstraints(b);
 
         const activeBots = state.p2Enabled ? [state.botRed, state.botBlue] : [state.botRed];
 
         for (const bot of activeBots) {
-            const alliance = getBotAlliance(bot);
-            const intakePos = getBotIntakePosition(bot);
+            const alliance = bot === state.botRed
+                ? 'red'
+                : state.sameTeamMode
+                    ? 'red'
+                    : 'blue';
 
-            if (Math.hypot(b.x - intakePos.x, b.y - intakePos.y) < 9 && bot.inventory < bot.model.capacity) {
+            let intakePos;
+
+            if (bot.name === 'Blitz') {
+                const intakeAngleOffset = bot.intakeSide === 'right'
+                    ? Math.PI / 2
+                    : -Math.PI / 2;
+
+                intakePos = {
+                    x: bot.x + bot.model.w / 2 + Math.cos(bot.angle + intakeAngleOffset) * (bot.model.w / 2 + 5),
+                    y: bot.y + bot.model.h / 2 + Math.sin(bot.angle + intakeAngleOffset) * (bot.model.w / 2 + 5)
+                };
+            } else {
+                intakePos = {
+                    x: bot.x + bot.model.w / 2 + Math.cos(bot.angle) * (bot.model.w / 2 + 5),
+                    y: bot.y + bot.model.h / 2 + Math.sin(bot.angle) * (bot.model.w / 2 + 5)
+                };
+            }
+
+            if (robotCanIntakeBallNow(bot, b)) {
                 bot.inventory++;
                 const heldElement = alliance === 'red' ? dom.heldRed : dom.heldBlue;
                 heldElement.innerText = bot.inventory;
@@ -485,20 +1531,23 @@ function updateBalls(now) {
             });
 
             if (rCol.hit) {
-                b.isStatic = false;
+                if (robotCanScoopContactBall(bot, b, rCol)) {
+                    bot.inventory++;
+                    const heldElement = alliance === 'red' ? dom.heldRed : dom.heldBlue;
+                    heldElement.innerText = bot.inventory;
+                    return false;
+                }
+
                 b.owner = alliance;
-                b.x += rCol.nx * rCol.overlap;
-                b.y += rCol.ny * rCol.overlap;
-                b.vx += rCol.nx * (Math.abs(bot.vx) * 0.5 + 1.0);
-                b.vy += rCol.ny * (Math.abs(bot.vy) * 0.5 + 1.0);
+                b.isStatic = false;
+
+                separateBallFromRobot(b, bot);
+                capRollingBallSpeed(b);
             }
         }
 
-        const speed = Math.hypot(b.vx, b.vy);
-        if (speed > 25) {
-            b.vx = (b.vx / speed) * 25;
-            b.vy = (b.vy / speed) * 25;
-        }
+        resolveBallWorldConstraints(b);
+        capRollingBallSpeed(b);
 
         return true;
     });
@@ -670,6 +1719,8 @@ export function update() {
     updateScoringBalls(now);
     updateBallCollisions();
     updateBalls(now);
+    resolveRobotBallPinning();
+    relaxBallPackPositionOnly(6);
     updateProjectiles(now);
 }
 

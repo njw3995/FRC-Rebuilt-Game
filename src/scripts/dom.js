@@ -26,8 +26,10 @@ export const dom = {
 
     toggleControlsButton: document.getElementById('toggle-controls-btn'),
     showControlsButton: document.getElementById('show-controls-btn'),
+    mobileControlsToggle: document.getElementById('mobile-controls-toggle'),
     closeControlsButton: document.getElementById('close-controls-btn'),
     resetControlsButton: document.getElementById('reset-controls-btn'),
+
 
     startButton: document.getElementById('start-btn'),
     resetButton: document.getElementById('reset-btn'),

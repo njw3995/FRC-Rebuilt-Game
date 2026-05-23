@@ -6,6 +6,7 @@ import { refreshInputLabels } from './input.js';
 import { closeControlsConfig, openControlsConfig } from './controlsConfig.js';
 import { playSound } from './audio.js';
 import { updateHubUI } from './match.js';
+import { setMobileControlsEnabled } from './mobileControls.js';
 
 const GAME_SETTINGS_STORAGE_KEY = 'frc-2026-game-settings-v1';
 const pressedMatchKeys = new Set();
@@ -52,6 +53,8 @@ export function loadSavedGameSettings() {
     if (isInputMode(saved.p2Input)) {
         state.p2Input = saved.p2Input;
     }
+    
+    state.mobileControlsEnabled = saved.mobileControlsEnabled === true;
 
     state.p1StartIdx = normalizeStartIdx(saved.p1StartIdx);
     state.p2StartIdx = normalizeStartIdx(saved.p2StartIdx);
@@ -76,6 +79,7 @@ function saveGameSettings() {
             p2Enabled: state.p2Enabled,
             p1Input: state.p1Input,
             p2Input: state.p2Input,
+            mobileControlsEnabled: state.mobileControlsEnabled,
             p1StartIdx: state.p1StartIdx,
             p2StartIdx: state.p2StartIdx,
             botRedModel: state.botRed?.name,
@@ -301,6 +305,7 @@ function syncGameSettingsUi() {
     syncControlsLayoutState();
 
     refreshHumanPlayerToggleLabels();
+    setMobileControlsEnabled(state.mobileControlsEnabled);
     refreshInputLabels();
 }
 
@@ -319,6 +324,13 @@ export function initUiListeners() {
     syncGameSettingsUi();
 
     dom.showControlsButton.onclick = openControlsConfig;
+    
+    dom.mobileControlsToggle.onclick = function toggleMobileControls() {
+    state.mobileControlsEnabled = !state.mobileControlsEnabled;
+    setMobileControlsEnabled(state.mobileControlsEnabled);
+    refreshInputLabels();
+    saveGameSettings();
+};
 
     dom.closeControlsButton.onclick = closeControlsConfig;
 

@@ -280,6 +280,18 @@ button {
     line-height: 1.1;
 }
 
+body.mobile-controls-enabled {
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+body.mobile-controls-enabled canvas {
+    touch-action: none;
+}
+
 body.controls-collapsed-layout {
     flex-direction: column;
     gap: 8px;
@@ -330,6 +342,18 @@ button:active {
     background: #8b5cf6;
     color: white;
     border-color: #8b5cf6;
+}
+
+#mobile-controls-toggle {
+    background: #222;
+    color: #ccc;
+    border-color: #555;
+}
+
+#mobile-controls-toggle.mobile-enabled {
+    background: #22c55e;
+    color: #07130a;
+    border-color: #86efac;
 }
 
 #p2-toggle.disabled {
@@ -599,6 +623,78 @@ button:active {
 #reset-controls-btn {
     background: #7f1d1d;
     border-color: #fca5a5;
+}
+
+.mobile-controls-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 80;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.mobile-controls-overlay.hidden {
+    display: none;
+}
+
+.mobile-joystick {
+    position: absolute;
+    width: 116px;
+    height: 116px;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    transition: opacity 0.12s;
+}
+
+.mobile-joystick.active {
+    opacity: 0.68;
+}
+
+.mobile-joystick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 46px;
+    height: 46px;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    background: rgba(251, 191, 36, 0.65);
+    border: 2px solid rgba(255, 255, 255, 0.45);
+}
+
+.mobile-action-button {
+    position: absolute;
+    width: auto;
+    min-width: 92px;
+    padding: 12px 14px;
+    border-radius: 999px;
+    background: rgba(251, 191, 36, 0.82);
+    border-color: rgba(255, 255, 255, 0.45);
+    color: #000;
+    font-size: 0.72rem;
+    pointer-events: auto;
+    touch-action: none;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+#mobile-shoot-button {
+    right: 18px;
+    bottom: 24px;
+}
+
+#mobile-intake-toggle-button {
+    right: 18px;
+    bottom: 88px;
+}
+
+.mobile-hidden {
+    display: none !important;
 }
 
 @media (max-width: 900px) {

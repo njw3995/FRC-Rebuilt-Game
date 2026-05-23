@@ -28,6 +28,7 @@ import {
     getOutpostZone,
     takeFuelFromOutpostForHuman
 } from './field.js';
+import { consumeMobileOutpostToggleSide } from './mobileControls.js';
 
 function applyUnstickFreeze(now, playerState, freezeUntil) {
     if (now >= freezeUntil) return playerState;
@@ -46,6 +47,11 @@ function updateControllerOutpostToggles() {
         toggleHumanPlayerShooting(state.sameTeamMode ? 'red' : 'blue');
     }
     state.outpostControllerTogglePressed.p2 = p2Pressed;
+    const mobileOutpostSide = consumeMobileOutpostToggleSide();
+
+    if (mobileOutpostSide) {
+        toggleHumanPlayerShooting(state.sameTeamMode ? 'red' : mobileOutpostSide);
+    }
 }
 
 function robotFitsInTrench(bot) {

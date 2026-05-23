@@ -17,6 +17,7 @@ export const state = {
     p2Enabled: true,
     p1Input: 'keyboard',
     p2Input: 'keyboard',
+    mobileControlsEnabled: false,
     p1StartIdx: 0,
     p2StartIdx: 0,
     p1UnstickUsed: false,

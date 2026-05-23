@@ -6,6 +6,7 @@ import {
 } from './constants.js';
 import { dom } from './dom.js';
 import { state } from './state.js';
+import { getMobileInputs } from './mobileControls.js';
 
 function keyPressed(codes) {
     return codes.some(code => state.keys[code]);
@@ -31,6 +32,10 @@ function getAvailableGamepadIndices() {
 }
 
 function playerNeedsController(playerId) {
+    if (playerId === 'p1' && state.mobileControlsEnabled) {
+        return false;
+    }
+
     if (playerId === 'p1') {
         return state.p1Input === 'controller';
     }
@@ -67,6 +72,9 @@ function getPlayerGamepad(playerId) {
 }
 
 function getInputLabel(playerId) {
+    if (playerId === 'p1' && state.mobileControlsEnabled) {
+    return 'MOBILE TOUCH';
+}
     const inputType = playerId === 'p1' ? state.p1Input : state.p2Input;
 
     if (inputType === 'keyboard') {
@@ -192,6 +200,10 @@ export function getInputs(playerId) {
     if (state.startCountdown > 0 || state.endCooldown > 0 || controlsModalOpen()) {
         return { x, y, rot, act, toggleIn };
     }
+    
+    if (playerId === 'p1' && state.mobileControlsEnabled) {
+    return getMobileInputs();
+}
 
     const type = playerId === 'p1' ? state.p1Input : state.p2Input;
 

@@ -13,6 +13,7 @@ import { initInputListeners, refreshInputLabels } from './input.js';
 import { update, draw } from './game.js';
 import { updateHubUI } from './match.js';
 import { initUiListeners, loadSavedGameSettings } from './ui.js';
+import { initMobileControls } from './mobileControls.js';
 
 configureCanvas();
 createRobots();
@@ -23,6 +24,7 @@ resetOutposts();
 resetBots();
 updateHubUI(false, false);
 initControlsConfig();
+initMobileControls();
 refreshInputLabels();
 initInputListeners();
 initUiListeners();
